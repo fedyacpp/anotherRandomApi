@@ -1,7 +1,9 @@
 const BrowserManager = require('../helpers/browser');
+const ProviderInterface = require('./ProviderInterface');
 
-class Provider1 {
+class Provider1 extends ProviderInterface {
   constructor(options = {}) {
+    super();
     this.browserManager = new BrowserManager(options);
     this.modelInfo = {
       modelId: "pi",
@@ -72,10 +74,10 @@ class Provider1 {
     }
   }
 
-  async generateCompletion(messages) {
+  async generateCompletion(messages, temperature) {
     try {
       const conversationId = await this.startConversation();
-      const prompt = Array.isArray(messages) ? messages[messages.length - 1].content : messages;
+      const prompt = this.formatMessages(messages);
       
       let fullResponse = '';
       for await (const textChunk of this.ask(prompt, conversationId)) {
@@ -87,6 +89,49 @@ class Provider1 {
       console.error('Error in generateCompletion:', error);
       throw error;
     }
+  }
+
+  async *generateCompletionStream(messages, temperature) {
+    try {
+      const conversationId = await this.startConversation();
+      const prompt = this.formatMessages(messages);
+      
+      let fullResponse = '';
+      for await (const textChunk of this.ask(prompt, conversationId)) {
+        fullResponse += textChunk;
+      }
+      
+      const words = fullResponse.split(' ');
+      
+      for (const word of words) {
+        yield {
+          choices: [{
+            delta: { content: word + ' ' },
+            index: 0,
+            finish_reason: null
+          }]
+        };
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      
+      yield {
+        choices: [{
+          delta: {},
+          index: 0,
+          finish_reason: "stop"
+        }]
+      };
+    } catch (error) {
+      console.error('Error in generateCompletionStream:', error);
+      throw error;
+    }
+  }
+
+  formatMessages(messages) {
+    if (Array.isArray(messages)) {
+      return messages.map(message => `${message.role}: ${message.content}`).join('\n');
+    }
+    return messages;
   }
 
   async close() {

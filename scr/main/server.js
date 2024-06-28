@@ -6,7 +6,8 @@ const Logger = require('../helpers/logger');
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use((req, res, next) => {
   Logger.info(`Incoming ${req.method} request to ${req.url}`);
