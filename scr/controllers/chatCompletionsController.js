@@ -6,7 +6,16 @@ exports.getChatCompletion = async (req, res, next) => {
     const { model, messages, temperature } = req.body;
     Logger.info(`Processing chat completion request for model: ${model}`);
     
-    const processedMessages = messages.map(message => message.content).join(' ');
+    if (!Array.isArray(messages)) {
+      throw new Error('Messages must be an array');
+    }
+    
+    const processedMessages = messages.map(message => 
+      `${message.role}: ${message.content}`
+    ).join('\n');
+    
+    Logger.info('Processed messages:', processedMessages);
+    
     const completion = await ChatCompletionService.generateCompletion(model, processedMessages, temperature);
     
     Logger.success(`Chat completion generated successfully for model: ${model}`);

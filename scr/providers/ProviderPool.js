@@ -4,7 +4,7 @@ const Logger = require('../helpers/logger');
 
 class ProviderPool {
   static providers = {
-    'model1': new Provider1(),
+    'inflection-2.5': new Provider1(),
     'model2': new Provider2(),
   };
 
