@@ -1,12 +1,14 @@
 # Chat Completion API
 
-Currently no working providers, just finished project skeleton and other middlewares and etc.
+Currently only one model - inflection-2.5 also known as pi
+
 This project implements a chat completion API using Node.js and Express.
 
 ## Setup
 
 1. Install dependencies: `npm install`
-2. Start the server: `node scr/main/server.js `
+2. Start the server: `node scr/main/server.js`
+3. Launch testing interface: `node scr\test\testInterface.js`
 
 ## API Endpoints
 
