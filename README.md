@@ -1,6 +1,7 @@
 # Chat Completion API
 
 Currently only one model - inflection-2.5 also known as pi
+
 This project implements a chat completion API using Node.js and Express.
 
 ## Setup
