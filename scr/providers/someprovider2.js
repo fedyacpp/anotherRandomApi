@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const uuid = require('uuid');
 const ProviderInterface = require('./ProviderInterface');

@@ -8,7 +8,7 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "gpt-4-turbo-2024-04-09";
+const MODEL = "inflection-2.5";
 
 async function chat() {
   console.log(chalk.blue("Welcome to the Terminal Chatbot!"));
@@ -47,7 +47,7 @@ async function streamingChat(chatHistory) {
     model: MODEL,
     messages: chatHistory,
     temperature: 0.7,
-    stream: true
+    stream: false
   }, {
     headers: { 'Content-Type': 'application/json' },
     responseType: 'stream'

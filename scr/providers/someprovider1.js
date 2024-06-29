@@ -5,7 +5,10 @@ const Logger = require('../helpers/logger');
 class Provider1 extends ProviderInterface {
   constructor(options = {}) {
     super();
-    this.browserManager = new BrowserManager(options);
+    this.browserManager = new BrowserManager({
+      ...options,
+      url: 'https://pi.ai'
+    });
     this.modelInfo = {
       modelId: "pi",
       name: "inflection-2.5",

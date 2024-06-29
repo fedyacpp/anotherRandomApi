@@ -12,12 +12,11 @@ class ProviderPool {
     const provider = this.providers.find(p => 
       p.modelInfo.modelId === modelIdentifier || p.modelInfo.name === modelIdentifier
     );
-
-    if (!provider) {
-      Logger.error(`Unsupported model requested: ${modelIdentifier}`);
-      throw new Error(`Unsupported model: ${modelIdentifier}`);
+    if (provider) {
+      Logger.info(`Provider found for model ${modelIdentifier}: ${provider.constructor.name}`);
+    } else {
+      Logger.error(`No provider found for model ${modelIdentifier}`);
     }
-    Logger.info(`Provider found for model: ${modelIdentifier}`);
     return provider;
   }
 
