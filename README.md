@@ -1,7 +1,6 @@
 # Chat Completion API
 
-Currently only one model - inflection-2.5 also known as pi
-
+Currently only two providers - pi.ai and liaobots
 This project implements a chat completion API using Node.js and Express.
 
 ## Setup

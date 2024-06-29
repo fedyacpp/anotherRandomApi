@@ -8,7 +8,7 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "inflection-2.5";
+const MODEL = "gpt-4-turbo-2024-04-09";
 
 async function chat() {
   console.log(chalk.blue("Welcome to the Terminal Chatbot!"));

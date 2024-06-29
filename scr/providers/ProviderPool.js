@@ -3,25 +3,27 @@ const Provider2 = require('./someprovider2');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
-  static providers = {
-    'inflection-2.5': new Provider1(),
-    'model2': new Provider2(),
-  };
+  static providers = [
+    new Provider1(),
+    new Provider2(),
+  ];
 
-  static getProvider(model) {
-    const provider = this.providers[model];
+  static getProvider(modelIdentifier) {
+    const provider = this.providers.find(p => 
+      p.modelInfo.modelId === modelIdentifier || p.modelInfo.name === modelIdentifier
+    );
+
     if (!provider) {
-      Logger.error(`Unsupported model requested: ${model}`);
-      throw new Error(`Unsupported model: ${model}`);
+      Logger.error(`Unsupported model requested: ${modelIdentifier}`);
+      throw new Error(`Unsupported model: ${modelIdentifier}`);
     }
-    Logger.info(`Provider found for model: ${model}`);
+    Logger.info(`Provider found for model: ${modelIdentifier}`);
     return provider;
   }
 
   static getModelsInfo() {
     Logger.info('Fetching models information');
-    return Object.values(this.providers).map(provider => ({
-      id: provider.modelInfo.modelId,
+    return this.providers.map(provider => ({
       name: provider.modelInfo.name,
       description: provider.modelInfo.description,
       context_window: provider.modelInfo.context_window,
