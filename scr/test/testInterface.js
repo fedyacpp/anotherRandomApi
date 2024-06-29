@@ -8,7 +8,8 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "inflection-2.5";
+const MODEL = "gpt-4-turbo-2024-04-09";
+const USE_STREAMING = true;
 
 async function chat() {
   console.log(chalk.blue("Welcome to the Terminal Chatbot!"));
@@ -34,7 +35,11 @@ async function chat() {
     chatHistory.push({ role: "user", content: userInput });
 
     try {
-      await streamingChat(chatHistory);
+      if (USE_STREAMING) {
+        await streamingChat(chatHistory);
+      } else {
+        await nonStreamingChat(chatHistory);
+      }
     } catch (error) {
       console.error(chalk.red('Error:', error.message));
       console.log(chalk.red("Bot: Sorry, I encountered an error while processing your request."));
@@ -47,7 +52,7 @@ async function streamingChat(chatHistory) {
     model: MODEL,
     messages: chatHistory,
     temperature: 0.7,
-    stream: false
+    stream: true
   }, {
     headers: { 'Content-Type': 'application/json' },
     responseType: 'stream'
@@ -62,6 +67,7 @@ async function streamingChat(chatHistory) {
       const message = line.replace(/^data: /, '');
       if (message === '[DONE]') {
         process.stdout.write('\n');
+        chatHistory.push({ role: "assistant", content: botReply });
         return;
       }
       try {
@@ -77,7 +83,20 @@ async function streamingChat(chatHistory) {
       }
     }
   }
+}
 
+async function nonStreamingChat(chatHistory) {
+  const response = await axios.post(API_URL, {
+    model: MODEL,
+    messages: chatHistory,
+    temperature: 0.7,
+    stream: false
+  }, {
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  const botReply = response.data.choices[0].message.content;
+  console.log(chalk.blue("Bot: " + botReply));
   chatHistory.push({ role: "assistant", content: botReply });
 }
 

@@ -274,7 +274,7 @@ async handleResponse(response, context) {
           model: this.ModelInfo,
           messages: messages,
           key: "",
-          prompt: messages.find(m => m.role === 'system')?.content || "You are a helpful assistant.",
+          prompt: messages.find(m => m.role === 'system')?.content || "You are a helpful assistant made by OpenAI.",
           temperature: temperature || 0.7,
       };
   }
@@ -316,28 +316,33 @@ formatLine(line) {
   }
 
   async generateCompletion(messages, temperature) {
-      await this.ensureSession();
-      const data = this.prepareRequestData(messages, temperature);
+    await this.ensureSession();
+    const data = this.prepareRequestData(messages, temperature);
 
-      try {
-          const response = await this.makeRequest(`${this.baseUrl}/api/chat`, {
-              method: 'POST',
-              body: JSON.stringify(data),
-          });
+    try {
+        const response = await this.makeRequest(`${this.baseUrl}/api/chat`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
 
-          if (!response.ok) {
-              const errorText = await response.text();
-              Logger.error(`Error response: ${errorText}`);
-              throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-          }
+        if (response.status !== 200) {
+            Logger.error(`Error response: ${response.statusText}`);
+            throw new Error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
+        }
 
-          const fullResponse = await response.text();
-          return { content: fullResponse.trim() };
-      } catch (error) {
-          this.logError('Error in generateCompletion', error);
-          throw error;
-      }
+        const responseData = response.data;
+
+        if (typeof responseData !== 'string') {
+            Logger.error(`Unexpected response type: ${typeof responseData}`);
+            throw new Error('Unexpected response type');
+        }
+
+        return { content: responseData.trim() };
+    } catch (error) {
+        this.logError('Error in generateCompletion', error);
+        throw error;
     }
-  }
+    }
+}
     
     module.exports = Provider2;
