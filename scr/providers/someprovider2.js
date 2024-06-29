@@ -12,12 +12,22 @@ class Provider2 extends ProviderInterface {
         this.baseUrl = "https://liaobots.work";
         this._authCode = "";
         this.modelInfo = {
-            id: "gpt-4-turbo-2024-04-09",
-            name: "gpt-4-turbo-2024-04-09",
-            maxLength: 260000,
-            tokenLimit: 126000,
-            context: "128K",
+          modelId: "gpt-4-turbo-2024-04-09",
+          name: "gpt-4-turbo-2024-04-09",
+          description: "Predecessor of gpt-4o",
+          context_window: 128000,
+          author: "OpenAI",
+          unfiltered: true,
+          reverseStatus: "Testing",
+          devNotes: ""
         };
+        this.ModelInfo = {
+          "id": "gpt-4-turbo-preview",
+          "name": "GPT-4-Turbo",
+          "maxLength": 260000,
+          "tokenLimit": 126000,
+          "context": "128K",
+        }
         this.maxRetries = 3;
         this.retryDelay = 2000;
         this.minBalance = 0.05;
@@ -262,7 +272,7 @@ async handleResponse(response, context) {
   prepareRequestData(messages, temperature) {
       return {
           conversationId: uuid.v4(),
-          model: this.modelInfo,
+          model: this.ModelInfo,
           messages: messages,
           key: "",
           prompt: messages.find(m => m.role === 'system')?.content || "You are a helpful assistant.",
