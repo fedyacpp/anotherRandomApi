@@ -1,11 +1,13 @@
 const Provider1 = require('./someprovider1');
 const Provider2 = require('./someprovider2');
+const Provider3 = require('./someprovider3');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
   static providers = [
     new Provider1(),
     new Provider2(),
+    new Provider3(),
   ];
 
   static getProvider(modelIdentifier) {

@@ -123,7 +123,6 @@ class Provider1 extends ProviderInterface {
   
       Logger.info(`Received raw response: ${response.substring(0, 200)}...`);
   
-      // Parse the SSE response
       let fullText = '';
       if (typeof response === 'string') {
         const lines = response.split('\n');

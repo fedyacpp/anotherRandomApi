@@ -10,22 +10,24 @@ class Provider2 extends ProviderInterface {
         this.baseUrl = "https://liaobots.work";
         this._authCode = "";
         this.modelInfo = {
-          modelId: "gpt-4-turbo",
-          name: "gpt-4-turbo",
-          description: "Predecessor of gpt-4o",
+          modelId: "claude-3-5-sonnet",
+          name: "claude-3-5-sonnet",
+          description: "Unstable provider! The most advanced model in the world i guess",
           context_window: 128000,
-          author: "OpenAI",
+          author: "Anthropic",
           unfiltered: true,
           reverseStatus: "Testing",
           devNotes: ""
         };
         this.ModelInfo = {
-          "id": "gpt-4-turbo-preview",
-          "name": "GPT-4-Turbo",
-          "maxLength": 260000,
-          "tokenLimit": 126000,
-          "context": "128K",
-        }
+           "id": "claude-3-5-sonnet-20240620",
+           "name": "Claude-3.5-Sonnet",
+           "maxLength": 800000,
+           "tokenLimit": 200000,
+           "model": "Claude",
+           "provider": "Anthropic",
+           "context": "200K"
+        };
         this.maxRetries = 3;
         this.retryDelay = 2000;
         this.minBalance = 0.05;

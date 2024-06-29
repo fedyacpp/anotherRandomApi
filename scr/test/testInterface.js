@@ -8,7 +8,7 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "gpt-4-turbo-2024-04-09";
+const MODEL = "claude-3-5-sonnet";
 const USE_STREAMING = true;
 
 async function chat() {

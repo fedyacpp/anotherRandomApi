@@ -72,7 +72,6 @@ class BrowserManager {
   async setUserAgent(userAgent) {
     if (this.page) {
       await this.page.setUserAgent(userAgent);
-      Logger.info(`User agent set to: ${userAgent}`);
     }
   }
 }
