@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const Logger = require('../helpers/logger');
 puppeteer.use(StealthPlugin());
 
 class BrowserManager {
@@ -21,7 +22,7 @@ class BrowserManager {
       
       await this.handleCloudflareChallenge();
       
-      console.log('Browser session initialized');
+      Logger.info('Browser session initialized');
     }
   }
 
@@ -31,7 +32,7 @@ class BrowserManager {
         return !document.querySelector('div.cf-browser-verification');
       }, { timeout: 30000 });
     } catch (error) {
-      console.error('Cloudflare challenge not solved in time:', error);
+      Logger.error('Cloudflare challenge not solved in time:', error);
     }
   }
 

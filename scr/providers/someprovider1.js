@@ -1,5 +1,6 @@
 const BrowserManager = require('../helpers/browser');
 const ProviderInterface = require('./ProviderInterface');
+const Logger = require('../helpers/logger');
 
 class Provider1 extends ProviderInterface {
   constructor(options = {}) {
@@ -32,8 +33,8 @@ class Provider1 extends ProviderInterface {
       });
       return response.conversations[0].sid;
     } catch (error) {
-      console.error('Error starting conversation:', error);
-      throw error;
+      Logger.error('Error starting conversation:', error);
+      throw new Error('Error starting conversation:', error);
     }
   }
 
@@ -64,13 +65,13 @@ class Provider1 extends ProviderInterface {
               yield data.text;
             }
           } catch (error) {
-            console.error('Error parsing JSON:', error);
+            Logger.error('Error parsing JSON:', error);
           }
         }
       }
     } catch (error) {
-      console.error('Error in ask method:', error);
-      throw error;
+      Logger.error('Error in ask method:', error);
+      throw new Error('Error in ask method:', error);
     }
   }
 
@@ -86,8 +87,8 @@ class Provider1 extends ProviderInterface {
       
       return { content: fullResponse.trim() };
     } catch (error) {
-      console.error('Error in generateCompletion:', error);
-      throw error;
+      Logger.error('Error in generateCompletion:', error);
+      throw new Error('Error in generateCompletion:', error);
     }
   }
 
@@ -122,8 +123,8 @@ class Provider1 extends ProviderInterface {
         }]
       };
     } catch (error) {
-      console.error('Error in generateCompletionStream:', error);
-      throw error;
+      Logger.error('Error in generateCompletionStream:', error);
+      throw new Error('Error in generateCompletionStream:', error);
     }
   }
 
@@ -132,10 +133,6 @@ class Provider1 extends ProviderInterface {
       return messages.map(message => `${message.role}: ${message.content}`).join('\n');
     }
     return messages;
-  }
-
-  async close() {
-    await this.browserManager.close();
   }
 }
 

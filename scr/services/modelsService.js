@@ -2,7 +2,9 @@ const ProviderPool = require('../providers/ProviderPool');
 
 class ModelsService {
   static async getModels() {
-    return ProviderPool.getModelsInfo();
+    const modelsInfo = ProviderPool.getModelsInfo();
+    const formattedJson = JSON.stringify(modelsInfo, null, 2);
+    return formattedJson;
   }
 }
 

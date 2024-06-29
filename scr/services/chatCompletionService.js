@@ -27,7 +27,7 @@ class ChatCompletionService {
         ...chunk
       };
     }
-    Logger.info(`Streaming completion finished for model: ${model}`);
+    Logger.success(`Streaming completion finished for model: ${model}`);
   }
 
   static formatResponse(model, content) {
