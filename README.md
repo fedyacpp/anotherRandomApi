@@ -1,6 +1,7 @@
 # Chat Completion API
 
-Currently only two providers - pi.ai and liaobots
+Currently only two providers - pi.ai and liaobots.
+
 This project implements a chat completion API using Node.js and Express.
 
 ## Setup

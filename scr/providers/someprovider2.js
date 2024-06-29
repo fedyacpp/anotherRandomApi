@@ -3,6 +3,7 @@ const uuid = require('uuid');
 const ProviderInterface = require('./ProviderInterface');
 const BrowserManager = require('../helpers/browser');
 const axios = require('axios');
+const Logger = require('../helpers/logger');
 
 class Provider2 extends ProviderInterface {
     constructor(proxyList = []) {
@@ -17,7 +18,7 @@ class Provider2 extends ProviderInterface {
           author: "OpenAI",
           unfiltered: true,
           reverseStatus: "Testing",
-          devNotes: ""
+          devNotes: "IP limiting"
         };
         this.ModelInfo = {
           "id": "gpt-4-turbo-preview",
@@ -60,16 +61,21 @@ class Provider2 extends ProviderInterface {
 
     async createSession(retryCount = 0) {
         try {
+            Logger.info('Creating new session');
             await this.resetData();
             await this.performHumanVerification();
             const userAuthData = await this.performUserAuth();
             
             if (userAuthData.balance <= this.minBalance) {
+                Logger.warn(`Low balance: ${userAuthData.balance}. Resetting session.`);
                 await this.resetData();
                 return this.createSession(retryCount);
             }
+            Logger.success('Session created successfully');
         } catch (error) {
+            Logger.error(`Error creating session: ${error.message}`);
             if (retryCount < this.maxRetries) {
+                Logger.info(`Retrying session creation. Attempt ${retryCount + 1} of ${this.maxRetries}`);
                 await new Promise(resolve => setTimeout(resolve, this.retryDelay));
                 return this.createSession(retryCount + 1);
             }
@@ -78,6 +84,7 @@ class Provider2 extends ProviderInterface {
     }
 
     async resetData() {
+        Logger.info('Resetting data');
         this._authCode = "";
         this.cookies = null;
         this.currentUserAgent = this.getRandomUserAgent();
@@ -90,23 +97,28 @@ class Provider2 extends ProviderInterface {
         }
         await this.browserManager.reset(this.currentProxy ? this.parseProxyString(this.currentProxy) : null);
         await this.browserManager.setUserAgent(this.currentUserAgent);
+        Logger.info('Data reset complete');
     }
 
     async performHumanVerification() {
+        Logger.info('Performing human verification');
         await this.browserManager.page.goto(this.baseUrl, { waitUntil: 'networkidle0', timeout: 30000 });
         await this.handleVerificationButton();
         
         const currentUrl = this.browserManager.page.url();
         if (!currentUrl.includes('liaobots.work/zh') && !currentUrl.includes('liaobots.work/en')) {
+            Logger.error(`Unexpected URL after verification: ${currentUrl}`);
             throw new Error(`Unexpected URL after verification: ${currentUrl}`);
         }
         
         this._authCode = await this.browserManager.page.evaluate(() => localStorage.getItem('authCode'));
         if (!this._authCode) {
+            Logger.error('Failed to retrieve authCode from localStorage');
             throw new Error('Failed to retrieve authCode from localStorage');
         }
         
         this.cookies = await this.browserManager.page.cookies();
+        Logger.success('Human verification complete');
     }
 
     async handleVerificationButton() {
@@ -117,6 +129,7 @@ class Provider2 extends ProviderInterface {
     }
 
     async performUserAuth() {
+        Logger.info('Performing user authentication');
         const response = await this.makeRequest(`${this.baseUrl}/api/user`, {
             method: 'POST',
             body: JSON.stringify({ authcode: this._authCode }),
@@ -124,11 +137,15 @@ class Provider2 extends ProviderInterface {
         const data = await this.handleResponse(response, 'User Auth');
         if (data.authCode) {
             this._authCode = data.authCode;
+            Logger.success('User authentication successful');
+        } else {
+            Logger.warn('User authentication completed, but no new authCode received');
         }
         return data;
     }
 
     async *generateCompletionStream(messages, temperature) {
+        Logger.info('Generating completion stream');
         await this.ensureSession();
         const data = this.prepareRequestData(messages, temperature);
 
@@ -155,25 +172,31 @@ class Provider2 extends ProviderInterface {
             }
             yield this.formatStreamResponse(null, true);
         } catch (error) {
+            Logger.error(`Error generating completion stream: ${error.message}`);
             throw error;
         }
     }
 
     async ensureSession() {
+        Logger.info('Ensuring valid session');
         if (!this._authCode) {
+            Logger.info('No authCode, creating new session');
             await this.createSession();
         } else {
             try {
                 const userData = await this.performUserAuth();
                 if (userData.balance <= this.minBalance) {
+                    Logger.warn(`Low balance: ${userData.balance}. Creating new session.`);
                     await this.resetData();
                     await this.createSession();
                 }
             } catch (error) {
+                Logger.error(`Error during session validation: ${error.message}. Creating new session.`);
                 await this.resetData();
                 await this.createSession();
             }
         }
+        Logger.success('Valid session ensured');
     }
 
     async makeRequest(url, options) {
@@ -244,6 +267,7 @@ class Provider2 extends ProviderInterface {
     }
 
     async generateCompletion(messages, temperature) {
+        Logger.info('Generating completion');
         await this.ensureSession();
         const data = this.prepareRequestData(messages, temperature);
 
@@ -254,17 +278,20 @@ class Provider2 extends ProviderInterface {
             });
 
             if (response.status !== 200) {
+                Logger.error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
                 throw new Error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
             }
 
             const responseData = response.data;
 
             if (typeof responseData !== 'string') {
+                Logger.error('Unexpected response type');
                 throw new Error('Unexpected response type');
             }
 
             return { content: responseData.trim() };
         } catch (error) {
+            Logger.error(`Error generating completion: ${error.message}`);
             throw error;
         }
     }
