@@ -7,7 +7,7 @@ This project implements a chat completion API using Node.js and Express.
 ## Setup
 
 1. Install dependencies: `npm install`
-2. Start the server: `node scr/main/server.js`
+2. Start the server: `node scr\main\server.js`
 3. Launch testing interface: `node scr\test\testInterface.js`
 
 ## API Endpoints
@@ -20,5 +20,5 @@ This project implements a chat completion API using Node.js and Express.
 To add a new provider:
 1. Create a new file in `src/providers/`
 2. Extend the `ProviderInterface` class
-3. Implement the `generateCompletion` method
+3. Implement the `generateCompletion` and `*generateCompletionStream` methods
 4. Add the new provider to `ProviderPool.js`
