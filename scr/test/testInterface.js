@@ -8,9 +8,9 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "claude-3-5-sonnet";
+const MODEL = "claude-3.5-sonnet";
 const USE_STREAMING = true;
-const FULL = false;
+const FULL = true;
 
 async function chat() {
   console.log(chalk.blue("Welcome to the Terminal Chatbot!"));
@@ -70,7 +70,7 @@ async function streamingChat(chatHistory) {
       if (message === '[DONE]') {
         break;
       }
-      
+
       try {
         const parsed = JSON.parse(message);
         fullResponse.push(parsed);

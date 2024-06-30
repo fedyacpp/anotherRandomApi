@@ -11,8 +11,8 @@ class Provider3 extends ProviderInterface {
         this.baseUrl = "https://liaobots.work";
         this._authCode = "";
         this.modelInfo = {
-            modelId: "claude-3-5-sonnet",
-            name: "claude-3-5-sonnet",
+            modelId: "claude-3.5-sonnet",
+            name: "claude-3.5-sonnet",
             description: "Unstable provider! The most advanced model in the world i guess",
             context_window: 128000,
             author: "Anthropic",
