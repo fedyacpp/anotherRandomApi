@@ -13,8 +13,8 @@ class Provider3 extends ProviderInterface {
         this.modelInfo = {
             modelId: "claude-3.5-sonnet",
             name: "claude-3.5-sonnet",
-            description: "Unstable provider! The most advanced model in the world i guess",
-            context_window: 128000,
+            description: "The most advanced model in the world i guess",
+            context_window: 200000,
             author: "Anthropic",
             unfiltered: true,
             reverseStatus: "Testing",
