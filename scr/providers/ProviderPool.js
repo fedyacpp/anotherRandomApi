@@ -11,27 +11,49 @@ class ProviderPool {
   ];
 
   static getProvider(modelIdentifier) {
+    if (!modelIdentifier) {
+      const error = new Error('Model identifier is required');
+      error.name = 'ValidationError';
+      throw error;
+    }
+
     const provider = this.providers.find(p => 
       p.modelInfo.modelId === modelIdentifier || p.modelInfo.name === modelIdentifier
     );
+    
     if (provider) {
       Logger.info(`Provider found for model ${modelIdentifier}: ${provider.constructor.name}`);
+      return provider;
     } else {
       Logger.error(`No provider found for model ${modelIdentifier}`);
+      const error = new Error(`No provider found for model ${modelIdentifier}`);
+      error.name = 'NotFoundError';
+      throw error;
     }
-    return provider;
   }
 
   static getModelsInfo() {
     Logger.info('Fetching models information');
-    return this.providers.map(provider => ({
-      name: provider.modelInfo.name,
-      description: provider.modelInfo.description,
-      context_window: provider.modelInfo.context_window,
-      author: provider.modelInfo.author,
-      unfiltered: provider.modelInfo.unfiltered,
-      reverseStatus: provider.modelInfo.reverseStatus,
-    }));
+    if (this.providers.length === 0) {
+      const error = new Error('No providers available');
+      error.name = 'ConfigurationError';
+      throw error;
+    }
+    
+    return this.providers.map(provider => {
+      if (!provider.modelInfo) {
+        Logger.warn(`Provider ${provider.constructor.name} has no modelInfo`);
+        return null;
+      }
+      return {
+        name: provider.modelInfo.name,
+        description: provider.modelInfo.description,
+        context_window: provider.modelInfo.context_window,
+        author: provider.modelInfo.author,
+        unfiltered: provider.modelInfo.unfiltered,
+        reverseStatus: provider.modelInfo.reverseStatus,
+      };
+    }).filter(Boolean);
   }
 }
 

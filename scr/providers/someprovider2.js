@@ -79,7 +79,10 @@ class Provider2 extends ProviderInterface {
                 await new Promise(resolve => setTimeout(resolve, this.retryDelay));
                 return this.createSession(retryCount + 1);
             }
-            throw error;
+            const customError = new Error('Failed to create session after multiple attempts');
+            customError.name = 'SessionCreationError';
+            customError.originalError = error;
+            throw customError;
         }
     }
 
@@ -101,24 +104,31 @@ class Provider2 extends ProviderInterface {
     }
 
     async performHumanVerification() {
-        Logger.info('Performing human verification');
-        await this.browserManager.page.goto(this.baseUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-        await this.handleVerificationButton();
-        
-        const currentUrl = this.browserManager.page.url();
-        if (!currentUrl.includes('liaobots.work/zh') && !currentUrl.includes('liaobots.work/en')) {
-            Logger.error(`Unexpected URL after verification: ${currentUrl}`);
-            throw new Error(`Unexpected URL after verification: ${currentUrl}`);
+        try {
+            Logger.info('Performing human verification');
+            await this.browserManager.page.goto(this.baseUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+
+            await this.handleVerificationButton();
+
+            const currentUrl = this.browserManager.page.url();
+            if (!currentUrl.includes('liaobots.work/zh') && !currentUrl.includes('liaobots.work/en')) {
+                throw new Error(`Unexpected URL after verification: ${currentUrl}`);
+            }
+
+            this._authCode = await this.browserManager.page.evaluate(() => localStorage.getItem('authCode'));
+            if (!this._authCode) {
+                throw new Error('Failed to retrieve authCode from localStorage');
+            }
+
+            this.cookies = await this.browserManager.page.cookies();
+            Logger.success('Human verification complete');
+        } catch (error) {
+            Logger.error(`Human verification failed: ${error.message}`);
+            const customError = new Error('Human verification failed');
+            customError.name = 'VerificationError';
+            customError.originalError = error;
+            throw customError;
         }
-        
-        this._authCode = await this.browserManager.page.evaluate(() => localStorage.getItem('authCode'));
-        if (!this._authCode) {
-            Logger.error('Failed to retrieve authCode from localStorage');
-            throw new Error('Failed to retrieve authCode from localStorage');
-        }
-        
-        this.cookies = await this.browserManager.page.cookies();
-        Logger.success('Human verification complete');
     }
 
     async handleVerificationButton() {
@@ -129,19 +139,27 @@ class Provider2 extends ProviderInterface {
     }
 
     async performUserAuth() {
-        Logger.info('Performing user authentication');
-        const response = await this.makeRequest(`${this.baseUrl}/api/user`, {
-            method: 'POST',
-            body: JSON.stringify({ authcode: this._authCode }),
-        });
-        const data = await this.handleResponse(response, 'User Auth');
-        if (data.authCode) {
-            this._authCode = data.authCode;
-            Logger.success('User authentication successful');
-        } else {
-            Logger.warn('User authentication completed, but no new authCode received');
+        try {
+            Logger.info('Performing user authentication');
+            const response = await this.makeRequest(`${this.baseUrl}/api/user`, {
+                method: 'POST',
+                body: JSON.stringify({ authcode: this._authCode }),
+            });
+            const data = await this.handleResponse(response, 'User Auth');
+            if (data.authCode) {
+                this._authCode = data.authCode;
+                Logger.success('User authentication successful');
+            } else {
+                Logger.warn('User authentication completed, but no new authCode received');
+            }
+            return data;
+        } catch (error) {
+            Logger.error(`User authentication failed: ${error.message}`);
+            const customError = new Error('User authentication failed');
+            customError.name = 'AuthenticationError';
+            customError.originalError = error;
+            throw customError;
         }
-        return data;
     }
 
     async *generateCompletionStream(messages, temperature) {
@@ -173,7 +191,10 @@ class Provider2 extends ProviderInterface {
             yield this.formatStreamResponse(null, true);
         } catch (error) {
             Logger.error(`Error generating completion stream: ${error.message}`);
-            throw error;
+            const customError = new Error('Failed to generate completion stream');
+            customError.name = 'StreamGenerationError';
+            customError.originalError = error;
+            throw customError;
         }
     }
 
@@ -191,26 +212,47 @@ class Provider2 extends ProviderInterface {
                     await this.createSession();
                 }
             } catch (error) {
-                Logger.error(`Error during session validation: ${error.message}. Creating new session.`);
-                await this.resetData();
-                await this.createSession();
+                Logger.error(`Error ensuring session: ${error.message}`);
+                const customError = new Error('Failed to ensure valid session');
+                customError.name = 'SessionValidationError';
+                customError.originalError = error;
+                throw customError;
             }
         }
         Logger.success('Valid session ensured');
     }
 
     async makeRequest(url, options) {
-        return axios({
-            url,
-            method: options.method,
-            data: options.body,
-            headers: this.getHeaders(),
-            httpsAgent: this.agent
-        });
+        try {
+            return await axios({
+                url,
+                method: options.method,
+                data: options.body,
+                headers: this.getHeaders(),
+                httpsAgent: this.agent
+            });
+        } catch (error) {
+            Logger.error(`Request failed: ${error.message}`);
+            const customError = new Error('Request failed');
+            customError.name = 'RequestError';
+            customError.originalError = error;
+            throw customError;
+        }
     }
-
+    
     async handleResponse(response, context) {
-        return response.data;
+        try {
+            if (response.status !== 200) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.data;
+        } catch (error) {
+            Logger.error(`Error handling response for ${context}: ${error.message}`);
+            const customError = new Error(`Error handling response for ${context}`);
+            customError.name = 'ResponseHandlingError';
+            customError.originalError = error;
+            throw customError;
+        }
     }
 
     getHeaders() {
@@ -292,7 +334,10 @@ class Provider2 extends ProviderInterface {
             return { content: responseData.trim() };
         } catch (error) {
             Logger.error(`Error generating completion: ${error.message}`);
-            throw error;
+            const customError = new Error('Failed to generate completion');
+            customError.name = 'CompletionGenerationError';
+            customError.originalError = error;
+            throw customError;
         }
     }
 }

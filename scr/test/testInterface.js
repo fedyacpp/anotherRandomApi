@@ -68,9 +68,9 @@ async function streamingChat(chatHistory) {
     for (const line of lines) {
       const message = line.replace(/^data: /, '');
       if (message === '[DONE]') {
-        console.log(chalk.gray('\n[Stream finished]'));
         break;
       }
+      
       try {
         const parsed = JSON.parse(message);
         fullResponse.push(parsed);
@@ -79,9 +79,6 @@ async function streamingChat(chatHistory) {
             const content = parsed.choices[0].delta.content;
             process.stdout.write(chalk.blue(content));
             botReply += content;
-          }
-          if (parsed.choices[0].finish_reason === "stop") {
-            console.log(chalk.gray('\n[Response completed]'));
           }
         }
       } catch (error) {

@@ -6,22 +6,28 @@ async function formatPrompt(messages) {
   }
 
   if (!Array.isArray(messages)) {
-    console.error('Messages is not an array or string:', messages);
-    return '';
+    const error = new Error('Messages must be an array or string');
+    error.name = 'ValidationError';
+    error.errors = { messages: 'Invalid format' };
+    throw error;
   }
 
   if (messages.length === 0) {
-    console.warn('Messages array is empty');
-    return '';
+    const error = new Error('Messages array is empty');
+    error.name = 'ValidationError';
+    error.errors = { messages: 'Empty array' };
+    throw error;
   }
 
   const formatted = messages.map(message => {
     if (typeof message !== 'object' || !message.role || !message.content) {
-      console.warn('Invalid message format:', message);
-      return '';
+      const error = new Error('Invalid message format');
+      error.name = 'ValidationError';
+      error.errors = { message: 'Invalid format' };
+      throw error;
     }
     return `${message.role.charAt(0).toUpperCase() + message.role.slice(1)}: ${message.content}`;
-  }).filter(Boolean).join('\n');
+  }).join('\n');
 
   return `${formatted}\nAssistant:`;
 }

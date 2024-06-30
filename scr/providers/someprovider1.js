@@ -32,12 +32,21 @@ class Provider1 extends ProviderInterface {
           },
           body: '{}',
         });
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return await res.json();
       });
+      if (!response.conversations || response.conversations.length === 0) {
+        throw new Error('No conversation started');
+      }
       return response.conversations[0].sid;
     } catch (error) {
       Logger.error('Error starting conversation:', error);
-      throw new Error('Error starting conversation:', error);
+      const customError = new Error('Failed to start conversation');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
 
@@ -74,7 +83,10 @@ class Provider1 extends ProviderInterface {
       }
     } catch (error) {
       Logger.error('Error in ask method:', error);
-      throw new Error('Error in ask method:', error);
+      const customError = new Error('Failed to get response from provider');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
 
@@ -89,7 +101,13 @@ class Provider1 extends ProviderInterface {
       return { content: response.trim() };
     } catch (error) {
       Logger.error('Error in generateCompletion:', error);
-      throw error;
+      if (error.name === 'ProviderError') {
+        throw error;
+      }
+      const customError = new Error('Failed to generate completion');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
   
@@ -142,11 +160,13 @@ class Provider1 extends ProviderInterface {
       if (!fullText) {
         throw new Error('No text in response');
       }
-  
       return fullText;
     } catch (error) {
       Logger.error('Error in askNonStreaming method:', error);
-      throw error;
+      const customError = new Error('Failed to get non-streaming response');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
 
@@ -197,7 +217,10 @@ class Provider1 extends ProviderInterface {
       };
     } catch (error) {
       Logger.error('Error in generateCompletionStream:', error);
-      throw error;
+      const customError = new Error('Failed to generate completion stream');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
 
