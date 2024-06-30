@@ -110,124 +110,122 @@ class Provider1 extends ProviderInterface {
       throw customError;
     }
   }
-    
-    async askNonStreaming(prompt, conversationId) {
-      try {
-        
+  
+  async askNonStreaming(prompt, conversationId) {
+    try {
         const response = await this.browserManager.evaluate(async (prompt, conversationId) => {
-          const res = await fetch('https://pi.ai/api/chat', {
-            method: 'POST',
-            headers: {
-              'accept': 'text/event-stream',
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              text: prompt,
-              conversation: conversationId,
-              mode: 'BASE'
-            }),
-          });
-    
-          const reader = res.body.getReader();
-          let result = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            result += new TextDecoder().decode(value);
-          }
-    
-          return result;
+            const res = await fetch('https://pi.ai/api/chat', {
+                method: 'POST',
+                headers: {
+                    'accept': 'text/event-stream',
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: prompt,
+                    conversation: conversationId,
+                    mode: 'BASE'
+                }),
+            });
+
+            const reader = res.body.getReader();
+            let result = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                result += new TextDecoder().decode(value);
+            }
+
+            return result;
         }, prompt, conversationId);
-    
-    
+
         let fullText = '';
         const lines = response.split('\n');
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.text) {
-                fullText += data.text;
-              }
-            } catch (e) {
-              Logger.warn(`Failed to parse line: ${line}`);
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    if (data.text) {
+                        fullText += data.text;
+                    }
+                } catch (e) {
+                    Logger.warn(`Failed to parse line: ${line}`);
+                }
             }
-          }
         }
-    
+
         if (!fullText) {
-          throw new Error('No text in response');
+            throw new Error('No text in response');
         }
-        
         return fullText;
-      } catch (error) {
+    } catch (error) {
+        Logger.error('Error in askNonStreaming method:', error);
         const customError = new Error('Failed to get non-streaming response');
         customError.name = 'ProviderError';
         customError.originalError = error;
         throw customError;
-      }
     }
+}
 
-    async *generateCompletionStream(messages, temperature) {
-      try {
-        const conversationId = await this.startConversation();
-        const prompt = this.formatMessages(messages);
+  async *generateCompletionStream(messages, temperature) {
+    try {
+      const conversationId = await this.startConversation();
+      const prompt = this.formatMessages(messages);
+      
+      const response = await this.askNonStreaming(prompt, conversationId);
+      
+      const sentences = response.match(/[^.!?]+[.!?]+\s*/g) || [response];
+      
+      for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i].trim();
+        const words = sentence.split(/\s+/);
         
-        const response = await this.askNonStreaming(prompt, conversationId);
-        
-        const sentences = response.match(/[^.!?]+[.!?]+\s*/g) || [response];
-        
-        for (let i = 0; i < sentences.length; i++) {
-          const sentence = sentences[i].trim();
-          const words = sentence.split(/\s+/);
-          
-          for (let j = 0; j < words.length; j++) {
-            yield {
-              choices: [{
-                delta: { 
-                  content: words[j] + (j < words.length - 1 ? ' ' : '')
-                },
-                index: 0,
-                finish_reason: null
-              }]
-            };
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
-          
-          if (i < sentences.length - 1) {
-            yield {
-              choices: [{
-                delta: { content: ' ' },
-                index: 0,
-                finish_reason: null
-              }]
-            };
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
+        for (let j = 0; j < words.length; j++) {
+          yield {
+            choices: [{
+              delta: { 
+                content: words[j] + (j < words.length - 1 ? ' ' : '')
+              },
+              index: 0,
+              finish_reason: null
+            }]
+          };
+          await new Promise(resolve => setTimeout(resolve, 20));
         }
         
-        yield {
-          choices: [{
-            delta: {},
-            index: 0,
-            finish_reason: "stop"
-          }]
-        };
-      } catch (error) {
-        Logger.error('Error in generateCompletionStream:', error);
-        const customError = new Error('Failed to generate completion stream');
-        customError.name = 'ProviderError';
-        customError.originalError = error;
-        throw customError;
+        if (i < sentences.length - 1) {
+          yield {
+            choices: [{
+              delta: { content: ' ' },
+              index: 0,
+              finish_reason: null
+            }]
+          };
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
       }
-    }
-
-    formatMessages(messages) {
-      if (Array.isArray(messages)) {
-        return messages.map(message => `${message.role}: ${message.content}`).join('\n');
-      }
-      return messages;
+      
+      yield {
+        choices: [{
+          delta: {},
+          index: 0,
+          finish_reason: "stop"
+        }]
+      };
+    } catch (error) {
+      Logger.error('Error in generateCompletionStream:', error);
+      const customError = new Error('Failed to generate completion stream');
+      customError.name = 'ProviderError';
+      customError.originalError = error;
+      throw customError;
     }
   }
 
-  module.exports = Provider1;
+  formatMessages(messages) {
+    if (Array.isArray(messages)) {
+      return messages.map(message => `${message.role}: ${message.content}`).join('\n');
+    }
+    return messages;
+  }
+}
+
+module.exports = Provider1;
