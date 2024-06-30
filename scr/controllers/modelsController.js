@@ -13,28 +13,30 @@ exports.getModels = async (req, res, next) => {
       throw error;
     }
     
-    Logger.success(`Successfully retrieved models`);
+    Logger.success(`Successfully retrieved ${formattedModels.length} models`);
+    
+    const response = {
+      object: "list",
+      data: formattedModels
+    };
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(formattedModels);
+    res.send(JSON.stringify(response, null, 2));
   } catch (error) {
     Logger.error(`Error fetching models: ${error.message}`);
     
     if (error.name === 'NotFoundError') {
-      next(error);
-    } else if (error.code === 'ECONNABORTED') {
-      const timeoutError = new Error('Request timed out');
-      timeoutError.name = 'TimeoutError';
-      next(timeoutError);
-    } else if (error.response && error.response.status === 401) {
-      const authError = new Error('Authentication failed');
-      authError.name = 'UnauthorizedError';
-      next(authError);
-    } else if (error.response && error.response.status === 403) {
-      const forbiddenError = new Error('Permission denied');
-      forbiddenError.name = 'ForbiddenError';
-      next(forbiddenError);
+      res.status(404).json({ error: error.message });
+    } else if (error.name === 'TimeoutError') {
+      res.status(504).json({ error: 'Request timed out' });
+    } else if (error.name === 'UnauthorizedError') {
+      res.status(401).json({ error: 'Authentication failed' });
+    } else if (error.name === 'ForbiddenError') {
+      res.status(403).json({ error: 'Permission denied' });
     } else {
-      next(error);
+      res.status(500).json({ error: 'Internal server error' });
     }
+
+    next(error);
   }
 };

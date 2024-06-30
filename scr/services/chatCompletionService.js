@@ -60,7 +60,6 @@ class ChatCompletionService {
           choices: chunk.choices
         };
 
-        // Check for timeout
         await Promise.race([Promise.resolve(), timeoutPromise]);
       }
       
