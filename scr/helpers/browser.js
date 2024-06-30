@@ -8,51 +8,32 @@ class BrowserManager {
   constructor(options = {}) {
     this.options = {
       headless: false,
-      url: 'https://liaobots.work',
+      url: 'https://pi.ai',
       ...options
     };
     this.browser = null;
     this.page = null;
   }
 
-  async init(proxySettings = null) {
-    try {
-      if (!this.browser) {
-        const launchOptions = { 
-          headless: this.options.headless,
-          args: ['--no-sandbox', '--disable-setuid-sandbox']
-        };
-        if (proxySettings) {
-          launchOptions.args.push(`--proxy-server=${proxySettings.protocol}://${proxySettings.host}:${proxySettings.port}`);
-        }
-        this.browser = await puppeteer.launch(launchOptions);
-        this.page = await this.browser.newPage();
-        if (proxySettings && proxySettings.username && proxySettings.password) {
-          await this.page.authenticate({
-            username: proxySettings.username,
-            password: proxySettings.password
-          });
-        }
-        await this.page.goto(this.options.url, { waitUntil: 'networkidle0', timeout: 60000 });
-        
-        await this.handleCloudflareChallenge();
-        
-        Logger.info('Browser session initialized');
-      }
-    } catch (error) {
-      Logger.error(`Error initializing browser: ${error.message}`);
-      if (error.name === 'TimeoutError') {
-        throw new Error('Browser initialization timed out');
-      } else if (error.message.includes('net::ERR_PROXY_CONNECTION_FAILED')) {
-        const proxyError = new Error('Proxy connection failed');
-        proxyError.name = 'ProxyError';
-        throw proxyError;
-      } else {
-        throw error;
-      }
+  async init() {
+    if (this.browser && this.page) {
+      return;
     }
+
+    Logger.info('Initializing BrowserManager...');
+    this.browser = await puppeteer.launch({
+      headless: this.options.headless,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    this.page = await this.browser.newPage();
+    Logger.info(`Navigating to ${this.options.url}`);
+    await this.page.goto(this.options.url, { waitUntil: 'networkidle0', timeout: 60000 });
+    await this.handleCloudflareChallenge();
+
+    Logger.info('Browser session initialized');
   }
-  
+
   async handleCloudflareChallenge() {
     try {
       await this.page.waitForFunction(() => {
@@ -60,9 +41,7 @@ class BrowserManager {
       }, { timeout: 30000 });
     } catch (error) {
       Logger.error('Cloudflare challenge not solved in time:', error);
-      const cloudflareError = new Error('Cloudflare challenge not solved in time');
-      cloudflareError.name = 'CloudflareError';
-      throw cloudflareError;
+      throw error;
     }
   }
 
@@ -79,16 +58,10 @@ class BrowserManager {
     }
   }
 
-  async reset(proxySettings = null) {
+  async reset() {
     await this.close();
-    await this.init(proxySettings);
+    await this.init();
     Logger.info('Browser session reset');
-  }
-
-  async setUserAgent(userAgent) {
-    if (this.page) {
-      await this.page.setUserAgent(userAgent);
-    }
   }
 }
 
