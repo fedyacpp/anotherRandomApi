@@ -95,7 +95,6 @@ class Provider1 extends ProviderInterface {
   
   async askNonStreaming(prompt, conversationId) {
     try {
-      Logger.info(`Sending request to pi.ai with prompt: ${prompt.substring(0, 50)}...`);
       const response = await this.browserManager.evaluate(async (prompt, conversationId) => {
         const res = await fetch('https://pi.ai/api/chat', {
           method: 'POST',
@@ -121,8 +120,6 @@ class Provider1 extends ProviderInterface {
         return result;
       }, prompt, conversationId);
   
-      Logger.info(`Received raw response: ${response.substring(0, 200)}...`);
-  
       let fullText = '';
       if (typeof response === 'string') {
         const lines = response.split('\n');
@@ -142,8 +139,6 @@ class Provider1 extends ProviderInterface {
         Logger.warn('Response is not a string');
       }
   
-      Logger.info(`Parsed response: ${fullText.substring(0, 200)}...`);
-  
       if (!fullText) {
         throw new Error('No text in response');
       }
@@ -160,22 +155,37 @@ class Provider1 extends ProviderInterface {
       const conversationId = await this.startConversation();
       const prompt = this.formatMessages(messages);
       
-      let fullResponse = '';
-      for await (const textChunk of this.ask(prompt, conversationId)) {
-        fullResponse += textChunk;
-      }
+      const response = await this.askNonStreaming(prompt, conversationId);
       
-      const words = fullResponse.split(' ');
+      const sentences = response.match(/[^.!?]+[.!?]+\s*/g) || [response];
       
-      for (const word of words) {
-        yield {
-          choices: [{
-            delta: { content: word + ' ' },
-            index: 0,
-            finish_reason: null
-          }]
-        };
-        await new Promise(resolve => setTimeout(resolve, 10));
+      for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i].trim();
+        const words = sentence.split(/\s+/);
+        
+        for (let j = 0; j < words.length; j++) {
+          yield {
+            choices: [{
+              delta: { 
+                content: words[j] + (j < words.length - 1 ? ' ' : '')
+              },
+              index: 0,
+              finish_reason: null
+            }]
+          };
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        
+        if (i < sentences.length - 1) {
+          yield {
+            choices: [{
+              delta: { content: ' ' },
+              index: 0,
+              finish_reason: null
+            }]
+          };
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
       }
       
       yield {
@@ -187,7 +197,7 @@ class Provider1 extends ProviderInterface {
       };
     } catch (error) {
       Logger.error('Error in generateCompletionStream:', error);
-      throw new Error('Error in generateCompletionStream:', error);
+      throw error;
     }
   }
 

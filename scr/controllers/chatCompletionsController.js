@@ -1,4 +1,4 @@
-const ChatCompletionService = require('../services/ChatCompletionService');
+const ChatCompletionService = require('../services/chatCompletionService');
 const Logger = require('../helpers/logger');
 
 exports.getChatCompletion = async (req, res, next) => {
@@ -18,12 +18,16 @@ exports.getChatCompletion = async (req, res, next) => {
       });
 
       const streamGenerator = ChatCompletionService.generateCompletionStream(model, messages, temperature);
-      
+
       for await (const chunk of streamGenerator) {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        
+        if (chunk.choices[0].finish_reason === "stop") {
+          res.write('data: [DONE]\n\n');
+          break;
+        }
       }
       
-      res.write('data: [DONE]\n\n');
       res.end();
     } else {
       const completion = await ChatCompletionService.generateCompletion(model, messages, temperature);

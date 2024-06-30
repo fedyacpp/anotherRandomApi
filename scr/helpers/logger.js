@@ -5,6 +5,10 @@ class Logger {
     console.log(chalk.blue(`[INFO] ${new Date().toISOString()} - ${message}`));
   }
 
+  static debug(message) {
+    console.log(chalk.blue(`[DEBUG] ${new Date().toISOString()} - ${message}`));
+  }
+
   static success(message) {
     console.log(chalk.green(`[SUCCESS] ${new Date().toISOString()} - ${message}`));
   }

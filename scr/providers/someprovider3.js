@@ -245,20 +245,20 @@ class Provider3 extends ProviderInterface {
 
     formatStreamResponse(content, isFinished = false) {
         if (isFinished) {
-            return {
-                choices: [{
-                    delta: {},
-                    index: 0,
-                    finish_reason: "stop"
-                }]
-            };
+          return {
+            choices: [{
+              delta: {},
+              index: 0,
+              finish_reason: "stop"
+            }]
+          };
         }
         return {
-            choices: [{
-                delta: { content: content },
-                index: 0,
-                finish_reason: null
-            }]
+          choices: [{
+            delta: { content: content },
+            index: 0,
+            finish_reason: null
+          }]
         };
     }
 
