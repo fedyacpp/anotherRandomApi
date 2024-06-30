@@ -12,7 +12,7 @@ class ModelsService {
       const formattedModels = models.map(model => ({
         id: model.name,
         object: "model",
-        created: Math.floor(Date.now() / 1000),
+        description: model.description,
         owned_by: model.author || "unknown",
         unfiltered: model.unfiltered,
         permission: [],

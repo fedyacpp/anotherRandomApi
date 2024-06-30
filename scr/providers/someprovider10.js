@@ -13,7 +13,7 @@ class Provider10 extends ProviderInterface {
         this.modelInfo = {
             modelId: "gpt-3.5-turbo-16k",
             name: "gpt-3.5-turbo-16k",
-            description: "An old generation model from OpenAI",
+            description: "This generation of models has started the hype around AI",
             context_window: 16000,
             author: "OpenAI",
             unfiltered: true,

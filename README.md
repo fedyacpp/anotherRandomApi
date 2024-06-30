@@ -14,6 +14,7 @@ This project implements a chat completion API using Node.js and Express.
 
 - POST /v1/chat/completions: Generate a chat completion
 - GET /v1/models: Get information about available models
+- GET /test/chat: WORKS ONLY IN DEVELOPMENT MODE (CHANGE IT IN .ENV), fully functioning chat for provider testing
 
 ## Adding New Providers
 

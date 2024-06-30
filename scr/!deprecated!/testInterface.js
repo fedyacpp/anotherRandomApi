@@ -8,9 +8,9 @@ const rl = readline.createInterface({
 });
 
 const API_URL = 'http://localhost:8000/v1/chat/completions';
-const MODEL = "gpt-4o";
+const MODEL = "inflection-2.5";
 const USE_STREAMING = true;
-const FULL = true;
+const FULL = false;
 
 async function chat() {
   console.log(chalk.blue("Welcome to the Terminal Chatbot!"));

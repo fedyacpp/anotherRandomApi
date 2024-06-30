@@ -12,8 +12,8 @@ class Provider1 extends ProviderInterface {
     this.modelInfo = {
       modelId: "pi",
       name: "inflection-2.5",
-      description: "Latest model by Inflection, using on pi.ai",
-      context_window: 4000,
+      description: "Very friendly model by Inflection, using on pi.ai",
+      context_window: "???",
       author: "Inflection",
       unfiltered: false,
       reverseStatus: "Testing",
@@ -113,62 +113,58 @@ class Provider1 extends ProviderInterface {
   
   async askNonStreaming(prompt, conversationId) {
     try {
-      const response = await this.browserManager.evaluate(async (prompt, conversationId) => {
-        const res = await fetch('https://pi.ai/api/chat', {
-          method: 'POST',
-          headers: {
-            'accept': 'text/event-stream',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: prompt,
-            conversation: conversationId,
-            mode: 'BASE'
-          }),
-        });
-  
-        const reader = res.body.getReader();
-        let result = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          result += new TextDecoder().decode(value);
-        }
-  
-        return result;
-      }, prompt, conversationId);
-  
-      let fullText = '';
-      if (typeof response === 'string') {
+        const response = await this.browserManager.evaluate(async (prompt, conversationId) => {
+            const res = await fetch('https://pi.ai/api/chat', {
+                method: 'POST',
+                headers: {
+                    'accept': 'text/event-stream',
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: prompt,
+                    conversation: conversationId,
+                    mode: 'BASE'
+                }),
+            });
+
+            const reader = res.body.getReader();
+            let result = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                result += new TextDecoder().decode(value);
+            }
+
+            return result;
+        }, prompt, conversationId);
+
+        let fullText = '';
         const lines = response.split('\n');
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.text) {
-                fullText += data.text;
-              }
-            } catch (e) {
-              Logger.warn(`Failed to parse line: ${line}`);
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    if (data.text) {
+                        fullText += data.text;
+                    }
+                } catch (e) {
+                    Logger.warn(`Failed to parse line: ${line}`);
+                }
             }
-          }
         }
-      } else {
-        Logger.warn('Response is not a string');
-      }
-  
-      if (!fullText) {
-        throw new Error('No text in response');
-      }
-      return fullText;
+
+        if (!fullText) {
+            throw new Error('No text in response');
+        }
+        return fullText;
     } catch (error) {
-      Logger.error('Error in askNonStreaming method:', error);
-      const customError = new Error('Failed to get non-streaming response');
-      customError.name = 'ProviderError';
-      customError.originalError = error;
-      throw customError;
+        Logger.error('Error in askNonStreaming method:', error);
+        const customError = new Error('Failed to get non-streaming response');
+        customError.name = 'ProviderError';
+        customError.originalError = error;
+        throw customError;
     }
-  }
+}
 
   async *generateCompletionStream(messages, temperature) {
     try {

@@ -13,7 +13,7 @@ class Provider5 extends ProviderInterface {
         this.modelInfo = {
             modelId: "gemini-1.5-pro",
             name: "gemini-1.5-pro",
-            description: "Latest model from Google",
+            description: "Latest model from Google, a strong middle-class, not an outstanding model",
             context_window: 1000000,
             author: "Google",
             unfiltered: true,

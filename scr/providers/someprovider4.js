@@ -13,7 +13,7 @@ class Provider4 extends ProviderInterface {
         this.modelInfo = {
             modelId: "gpt-4o",
             name: "gpt-4o",
-            description: "Latest model from OpenAI",
+            description: "Latest model from OpenAI, performs better than gpt-4-turbo at some times, but still worse than claude-3.5-sonnet",
             context_window: 128000,
             author: "OpenAI",
             unfiltered: true,

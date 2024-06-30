@@ -13,7 +13,7 @@ class Provider2 extends ProviderInterface {
         this.modelInfo = {
           modelId: "gpt-4-turbo",
           name: "gpt-4-turbo",
-          description: "Predecessor of gpt-4o",
+          description: "Predecessor of gpt-4o, still performs well",
           context_window: 128000,
           author: "OpenAI",
           unfiltered: true,

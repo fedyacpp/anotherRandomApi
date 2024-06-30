@@ -5,15 +5,15 @@ const BrowserManager = require('../helpers/browser');
 const axios = require('axios');
 const Logger = require('../helpers/logger');
 
-class Provider7 extends ProviderInterface {
+class Provider11 extends ProviderInterface {
     constructor(proxyList = []) {
         super();
         this.baseUrl = "https://liaobots.work";
         this._authCode = "";
         this.modelInfo = {
-            modelId: "claude-2.1",
-            name: "claude-2.1",
-            description: "An old-school model from Anthropic",
+            modelId: "claude-3-sonnet",
+            name: "claude-3-sonnet",
+            description: "Lets be honest, no one thought that with another update this model will become the most intelligent model in the world",
             context_window: 200000,
             author: "Anthropic",
             unfiltered: true,
@@ -21,8 +21,8 @@ class Provider7 extends ProviderInterface {
             devNotes: "IP limiting"
           };
           this.ModelInfo = {
-            "id": "claude-2.1",
-            "name": "Claude-2.1-200k",
+            "id": "claude-3-sonnet-20240229",
+            "name": "Claude-3-Sonnet",
             "maxLength": 800000,
             "tokenLimit": 200000,
             "model": "Claude",
@@ -344,4 +344,4 @@ class Provider7 extends ProviderInterface {
     }
 }
 
-module.exports = Provider7;
+module.exports = Provider11;

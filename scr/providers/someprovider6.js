@@ -13,7 +13,7 @@ class Provider6 extends ProviderInterface {
         this.modelInfo = {
             modelId: "gemini-1.5-flash",
             name: "gemini-1.5-flash",
-            description: "Fastest model from Google",
+            description: "Fastest model from Google, dumber than gemini-1.5-pro",
             context_window: 1000000,
             author: "Google",
             unfiltered: true,
