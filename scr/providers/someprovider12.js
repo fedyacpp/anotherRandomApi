@@ -124,9 +124,10 @@ class Provider12 {
             ws.send("42" + JSON.stringify(["perplexity_labs", messageData]));
     
             let lastMessage = 0;
+            let isFirstChunk = true;
+    
             while (true) {
                 const message = await new Promise(resolve => ws.once('message', resolve));
-    
     
                 if (message === "2") {
                     ws.send("3");
@@ -143,19 +144,31 @@ class Provider12 {
                         Logger.error('No output in received data:', data);
                         continue;
                     }
+    
                     const newContent = data.output.slice(lastMessage);
                     lastMessage = data.output.length;
     
+                    if (newContent || isFirstChunk) {
+                        yield {
+                            choices: [{
+                                delta: { content: newContent },
+                                index: 0,
+                                finish_reason: null
+                            }]
+                        };
+                        isFirstChunk = false;
+                    }
     
-                    yield {
-                        choices: [{
-                            delta: { content: newContent },
-                            index: 0,
-                            finish_reason: data.final ? "stop" : null
-                        }]
-                    };
-    
-                    if (data.final) break;
+                    if (data.final) {
+                        yield {
+                            choices: [{
+                                delta: {},
+                                index: 0,
+                                finish_reason: "stop"
+                            }]
+                        };
+                        break;
+                    }
                 } catch (error) {
                     Logger.error(`Message parsing error: ${message}`, error);
                     continue;
@@ -170,7 +183,7 @@ class Provider12 {
             customError.originalError = error;
             throw customError;
         }
-    }    
+    }
 
     async sendAndWait(ws, sendMessage, expectedResponse) {
         ws.send(sendMessage);
