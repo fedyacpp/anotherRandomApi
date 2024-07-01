@@ -14,6 +14,8 @@ exports.getChatCompletion = async (req, res, next) => {
       timeout = 30000
     } = req.body;
 
+    const ip = req.ip;
+
     Logger.info(`Processing chat completion request for model: ${model}`);
     
     if (!model) {
@@ -40,10 +42,11 @@ exports.getChatCompletion = async (req, res, next) => {
       });
 
       const streamGenerator = ChatCompletionService.generateCompletionStream(
-        model, messages, temperature, max_tokens, functions, function_call, timeout
+        model, messages, temperature, max_tokens, functions, function_call, timeout, ip
       );
 
       for await (const chunk of streamGenerator) {
+        if (res.writableEnded) break;
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         
         if (chunk.choices[0].finish_reason === "stop") {
@@ -52,8 +55,11 @@ exports.getChatCompletion = async (req, res, next) => {
         }
       }
       
-      res.end();
-    } else {
+      if (!res.writableEnded) {
+        Logger.success(`Streaming chat completion generated successfully for model: ${model}`);
+        res.end();
+       }
+      } else {
       const completion = await ChatCompletionService.generateCompletion(
         model, messages, temperature, max_tokens, functions, function_call, timeout
       );

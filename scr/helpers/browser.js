@@ -1,13 +1,9 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const Logger = require('../helpers/logger');
-
-puppeteer.use(StealthPlugin());
 
 class BrowserManager {
   constructor(options = {}) {
     this.options = {
-      headless: false,
+      headless: 'auto',
       url: 'https://pi.ai',
       ...options
     };
@@ -19,28 +15,28 @@ class BrowserManager {
     if (this.browser && this.page) {
       return;
     }
-
     Logger.info('Initializing BrowserManager...');
-    this.browser = await puppeteer.launch({
-      headless: this.options.headless,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    this.page = await this.browser.newPage();
-    Logger.info(`Navigating to ${this.options.url}`);
-    await this.page.goto(this.options.url, { waitUntil: 'networkidle0', timeout: 60000 });
-    await this.handleCloudflareChallenge();
-
-    Logger.info('Browser session initialized');
-  }
-
-  async handleCloudflareChallenge() {
     try {
-      await this.page.waitForFunction(() => {
-        return !document.querySelector('div.cf-browser-verification');
-      }, { timeout: 30000 });
+      const { connect } = await import('puppeteer-real-browser');
+      const response = await connect({
+        headless: this.options.headless,
+        turnstile: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        customConfig: {},
+      });
+      
+      this.browser = response.browser;
+      this.page = response.page;
+
+      Logger.info(`Navigating to ${this.options.url}`);
+      
+      this.page.on('console', msg => Logger.info(`Browser Console: ${msg.text()}`));
+
+      await this.page.goto(this.options.url, { waitUntil: 'networkidle0', timeout: 60000 });
+      
+      Logger.info('Browser session initialized');
     } catch (error) {
-      Logger.error('Cloudflare challenge not solved in time:', error);
+      Logger.error('Error initializing browser:', error);
       throw error;
     }
   }
@@ -62,6 +58,12 @@ class BrowserManager {
     await this.close();
     await this.init();
     Logger.info('Browser session reset');
+  }
+
+  async setUserAgent(userAgent) {
+    await this.init();
+    await this.page.setUserAgent(userAgent);
+    Logger.info(`User agent set to: ${userAgent}`);
   }
 }
 

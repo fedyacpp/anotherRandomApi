@@ -16,6 +16,7 @@ class ChatCompletionService {
       return result;
     } catch (error) {
       Logger.error(`Error generating completion: ${error.message}`);
+      Logger.error(`Error stack: ${error.stack}`);
       if (error.message === 'Request timed out') {
         const timeoutError = new Error('Request timed out');
         timeoutError.name = 'TimeoutError';
@@ -24,19 +25,15 @@ class ChatCompletionService {
       if (error.name === 'ProviderError') {
         throw error;
       }
-      const customError = new Error('Failed to generate completion');
-      customError.name = 'CompletionError';
-      customError.originalError = error;
-      throw customError;
+      throw error;
     }
   }
-
   static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
-    const provider = ProviderPool.getProvider(model);
-    if (!provider) {
-      throw new Error(`No provider found for model: ${model}`);
-    }
-    const providerResponse = await provider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
+    const providers = ProviderPool.getProviders(model);
+    this.validateProviders(providers, model);
+    const randomProvider = this.getRandomProvider(providers);
+    Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
+    const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
     return this.formatResponse(model, providerResponse);
   }
 
@@ -79,12 +76,11 @@ class ChatCompletionService {
   }
 
   static async *_generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call) {
-    const provider = ProviderPool.getProvider(model);
-    if (!provider) {
-      throw new Error(`No provider found for model: ${model}`);
-    }
-    Logger.info(`Starting streaming completion for model: ${model}`);
-    const stream = provider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
+    const providers = ProviderPool.getProviders(model);
+    this.validateProviders(providers, model);
+    const randomProvider = this.getRandomProvider(providers);
+    Logger.info(`Starting streaming completion for model: ${model} using provider: ${randomProvider.constructor.name}`);
+    const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
     
     for await (const chunk of stream) {
       yield chunk;
@@ -125,12 +121,16 @@ class ChatCompletionService {
     return response;
   }
 
-  static validateProvider(provider, model) {
-    if (!provider) {
-      const error = new Error(`No provider found for model: ${model}`);
+  static validateProviders(providers, model) {
+    if (!providers || providers.length === 0) {
+      const error = new Error(`No providers found for model: ${model}`);
       error.name = 'ProviderError';
       throw error;
     }
+  }
+
+  static getRandomProvider(providers) {
+    return providers[Math.floor(Math.random() * providers.length)];
   }
 
   static handleProviderError(error, operation) {

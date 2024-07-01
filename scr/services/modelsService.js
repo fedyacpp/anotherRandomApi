@@ -20,6 +20,7 @@ class ModelsService {
         parent: null,
         context_window: model.context_window || -1,
         reverseStatus: model.reverseStatus,
+        providerCount: model.providerCount
       }));
 
       formattedModels.sort((a, b) => {

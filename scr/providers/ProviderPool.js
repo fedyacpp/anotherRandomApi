@@ -9,6 +9,7 @@ const Provider8 = require('./someprovider8');
 const Provider9 = require('./someprovider9');
 const Provider10 = require('./someprovider10');
 const Provider11 = require('./someprovider11');
+const Provider12 = require('./someprovider12');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
@@ -24,26 +25,41 @@ class ProviderPool {
     new Provider9(),
     new Provider10(),
     new Provider11(),
+    new Provider12()
   ];
 
-  static getProvider(modelIdentifier) {
+  static getProviders(modelIdentifier) {
     if (!modelIdentifier) {
       const error = new Error('Model identifier is required');
       error.name = 'ValidationError';
       throw error;
     }
 
-    const provider = this.providers.find(p => 
+    const matchingProviders = this.providers.filter(p => 
       p.modelInfo.modelId === modelIdentifier || p.modelInfo.name === modelIdentifier
     );
     
-    if (provider) {
-      Logger.info(`Provider found for model ${modelIdentifier}: ${provider.constructor.name}`);
-      return provider;
+    if (matchingProviders.length > 0) {
+      Logger.info(`Found ${matchingProviders.length} providers for model ${modelIdentifier}`);
+      return matchingProviders;
     } else {
       Logger.error(`No provider found for model ${modelIdentifier}`);
       const error = new Error(`No provider found for model ${modelIdentifier}`);
       error.name = 'NotFoundError';
+      throw error;
+    }
+  }
+
+  static async callModel(modelIdentifier, messages, temperature) {
+    const providers = this.getProviders(modelIdentifier);
+    
+    const randomProvider = providers[Math.floor(Math.random() * providers.length)];
+    
+    try {
+      const response = await randomProvider.generateCompletion(messages, temperature);
+      return response;
+    } catch (error) {
+      Logger.error(`Error calling model ${modelIdentifier}: ${error.message}`);
       throw error;
     }
   }
@@ -56,20 +72,33 @@ class ProviderPool {
       throw error;
     }
     
-    return this.providers.map(provider => {
+    const modelsMap = new Map();
+
+    this.providers.forEach(provider => {
       if (!provider.modelInfo) {
         Logger.warn(`Provider ${provider.constructor.name} has no modelInfo`);
-        return null;
+        return;
       }
-      return {
+
+      const modelInfo = {
         name: provider.modelInfo.name,
         description: provider.modelInfo.description,
         context_window: provider.modelInfo.context_window,
         author: provider.modelInfo.author,
         unfiltered: provider.modelInfo.unfiltered,
         reverseStatus: provider.modelInfo.reverseStatus,
+        providerCount: 1
       };
-    }).filter(Boolean);
+
+      if (modelsMap.has(modelInfo.name)) {
+        const existingModel = modelsMap.get(modelInfo.name);
+        existingModel.providerCount += 1;
+      } else {
+        modelsMap.set(modelInfo.name, modelInfo);
+      }
+    });
+
+    return Array.from(modelsMap.values());
   }
 }
 
