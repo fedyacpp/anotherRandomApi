@@ -12,8 +12,8 @@ class Provider12 {
         this.modelInfo = {
             modelId: "mixtral-8x7b-instruct",
             name: "mixtral-8x7b-instruct",
-            description: "Mixtral 8x7B Instruct model",
-            context_window: 4000,
+            description: "Mistral's MOE model",
+            context_window: 32000,
             author: "Mistral AI",
         };
         this.cookieJar = new tough.CookieJar();
