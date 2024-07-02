@@ -3,9 +3,11 @@ const axios = require('axios');
 const tough = require('tough-cookie');
 const Logger = require('../helpers/logger');
 const BrowserManager = require('../helpers/browser');
+const ProviderInterface = require('./ProviderInterface');
 
-class Provider15 {
+class Provider15 extends ProviderInterface {
     constructor() {
+        super();
         this.url = "https://labs.perplexity.ai";
         this.api_url = "https://www.perplexity.ai/socket.io/";
         this.ws_url = "wss://www.perplexity.ai/socket.io/";
@@ -15,6 +17,9 @@ class Provider15 {
             description: "Meta's open-source model",
             context_window: 8000,
             author: "Meta",
+            unfiltered: true,
+            reverseStatus: "Testing",
+            devNotes: ""
         };
         this.cookieJar = new tough.CookieJar();
         this.axiosInstance = axios.create({
