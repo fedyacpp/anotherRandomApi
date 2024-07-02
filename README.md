@@ -8,7 +8,6 @@ This project implements a chat completion API using Node.js and Express.
 
 1. Install dependencies: `npm install`
 2. Start the server: `node scr\main\server.js`
-3. Launch testing interface: `node scr\test\testInterface.js`
 
 ## API Endpoints
 
