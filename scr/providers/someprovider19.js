@@ -5,18 +5,18 @@ const Logger = require('../helpers/logger');
 const BrowserManager = require('../helpers/browser');
 const ProviderInterface = require('./ProviderInterface');
 
-class Provider14 extends ProviderInterface {
+class Provider19 extends ProviderInterface {
     constructor() {
         super();
         this.url = "https://labs.perplexity.ai";
         this.api_url = "https://www.perplexity.ai/socket.io/";
         this.ws_url = "wss://www.perplexity.ai/socket.io/";
         this.modelInfo = {
-            modelId: "gemma-2-27b-it",
-            name: "gemma-2-27b-it",
-            description: "Google's open-source model",
-            context_window: 8000,
-            author: "Google",
+            modelId: "llama-3-sonar-large-32k-online",
+            name: "llama-3-sonar-large-32k-online",
+            description: "Perplexity's modified llama-3 model model with internet access",
+            context_window: 32000,
+            author: "Perplexity AI",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: ""
@@ -246,4 +246,4 @@ class Provider14 extends ProviderInterface {
     }
 }
 
-module.exports = Provider14;
+module.exports = Provider19;
