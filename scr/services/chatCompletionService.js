@@ -33,9 +33,18 @@ class ChatCompletionService {
     this.validateProviders(providers, model);
     const randomProvider = this.getRandomProvider(providers);
     Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
-    const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
-    return this.formatResponse(model, providerResponse);
-  }
+    
+    try {
+        const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
+        if (!providerResponse || !providerResponse.content) {
+            throw new Error('Provider returned empty response');
+        }
+        return this.formatResponse(model, providerResponse);
+    } catch (error) {
+        Logger.error(`Error from provider ${randomProvider.constructor.name}: ${error.message}`);
+        throw new Error(`Provider ${randomProvider.constructor.name} failed: ${error.message}`);
+    }
+}
 
   static async *generateCompletionStream(model, messages, temperature, max_tokens, functions, function_call, timeout) {
     const timeoutPromise = new Promise((_, reject) =>
@@ -80,12 +89,21 @@ class ChatCompletionService {
     this.validateProviders(providers, model);
     const randomProvider = this.getRandomProvider(providers);
     Logger.info(`Starting streaming completion for model: ${model} using provider: ${randomProvider.constructor.name}`);
-    const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
-    
-    for await (const chunk of stream) {
-      yield chunk;
+    try {
+        const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
+        
+        for await (const chunk of stream) {
+            yield chunk;
+        }
+    } catch (error) {
+        Logger.error(`Error in provider ${randomProvider.constructor.name}: ${error.message}`);
+        if (error.message.includes('API Error')) {
+            throw new Error(`The external API is currently unavailable. Please try again later.`);
+        } else {
+            throw new Error(`An unexpected error occurred. Please try again later.`);
+        }
     }
-  }
+}
 
   static formatResponse(model, providerResponse) {
     if (!providerResponse || !providerResponse.content) {

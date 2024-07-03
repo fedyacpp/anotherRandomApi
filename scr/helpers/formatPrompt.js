@@ -1,17 +1,17 @@
-function formatPrompt(messages) {
-  if (typeof messages === 'string') {
-    return messages;
-  }
-
-  if (!Array.isArray(messages)) {
-    return messages;
-  }
-
-  if (messages.length === 0) {
+function formatPrompt(messages, addSpecialTokens = false) {
+  if (!Array.isArray(messages) || messages.length === 0) {
     return '';
   }
 
-  return messages.map(message => `${message.role}: ${message.content}`).join('\n');
+  if (!addSpecialTokens && messages.length === 1) {
+    return messages[0].content;
+  }
+
+  const formatted = messages.map(message => 
+    `${message.role.charAt(0).toUpperCase() + message.role.slice(1)}: ${message.content}`
+  ).join('\n');
+
+  return `${formatted}\nAssistant:`;
 }
 
 module.exports = formatPrompt;

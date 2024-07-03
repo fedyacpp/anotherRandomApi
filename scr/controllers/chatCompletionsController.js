@@ -41,25 +41,34 @@ exports.getChatCompletion = async (req, res, next) => {
         'Connection': 'keep-alive',
       });
 
-      const streamGenerator = ChatCompletionService.generateCompletionStream(
-        model, messages, temperature, max_tokens, functions, function_call, timeout, ip
-      );
+      try {
+        const streamGenerator = ChatCompletionService.generateCompletionStream(
+          model, messages, temperature, max_tokens, functions, function_call, timeout, ip
+        );
 
-      for await (const chunk of streamGenerator) {
-        if (res.writableEnded) break;
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        for await (const chunk of streamGenerator) {
+          if (res.writableEnded) break;
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          
+          if (chunk.choices[0].finish_reason === "stop") {
+            res.write('data: [DONE]\n\n');
+            break;
+          }
+        }
         
-        if (chunk.choices[0].finish_reason === "stop") {
-          res.write('data: [DONE]\n\n');
-          break;
+        if (!res.writableEnded) {
+          Logger.success(`Streaming chat completion generated successfully for model: ${model}`);
+          res.end();
+        }
+      } catch (error) {
+        if (!res.headersSent) {
+          handleError(error, next);
+        } else {
+          Logger.error(`Error in stream after headers sent: ${error.message}`);
+          res.end();
         }
       }
-      
-      if (!res.writableEnded) {
-        Logger.success(`Streaming chat completion generated successfully for model: ${model}`);
-        res.end();
-       }
-      } else {
+    } else {
       const completion = await ChatCompletionService.generateCompletion(
         model, messages, temperature, max_tokens, functions, function_call, timeout
       );
