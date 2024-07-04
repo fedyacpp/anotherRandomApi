@@ -11,7 +11,7 @@ class Provider20 extends ProviderInterface {
       modelId: "gpt-3.5-turbo",
       name: "gpt-3.5-turbo",
       description: "OpenAI's GPT-3.5 Turbo model",
-      context_window: "4096",
+      context_window: "4000",
       author: "OpenAI",
       unfiltered: false,
       reverseStatus: "Testing",
