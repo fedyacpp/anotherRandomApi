@@ -90,24 +90,27 @@ class Provider1 extends ProviderInterface {
     }
   }
 
-  async generateCompletion(messages, temperature) {
+  async generateCompletion(messages, temperature, max_tokens, functions, function_call) {
     try {
+      Logger.info('Provider1: Starting generateCompletion', { messagesCount: messages.length, temperature, max_tokens });
       const conversationId = await this.startConversation();
       const prompt = this.formatMessages(messages);
       
-      Logger.info(`Starting completion with conversation ID: ${conversationId}`);
+      Logger.info(`Provider1: Starting completion with conversation ID: ${conversationId}`);
       const response = await this.askNonStreaming(prompt, conversationId);
       
-      return { content: response.trim() };
+      Logger.info('Provider1: Completion generated successfully');
+      return {
+        content: response.trim(),
+        usage: {
+          prompt_tokens: -1,
+          completion_tokens: -1,
+          total_tokens: -1
+        }
+      };
     } catch (error) {
-      Logger.error('Error in generateCompletion:', error);
-      if (error.name === 'ProviderError') {
-        throw error;
-      }
-      const customError = new Error('Failed to generate completion');
-      customError.name = 'ProviderError';
-      customError.originalError = error;
-      throw customError;
+      Logger.error('Provider1: Error in generateCompletion:', error);
+      throw error;
     }
   }
   
@@ -166,59 +169,59 @@ class Provider1 extends ProviderInterface {
     }
 }
 
-  async *generateCompletionStream(messages, temperature) {
-    try {
-      const conversationId = await this.startConversation();
-      const prompt = this.formatMessages(messages);
+async *generateCompletionStream(messages, temperature, max_tokens, functions, function_call) {
+  try {
+    const conversationId = await this.startConversation();
+    const prompt = this.formatMessages(messages);
+    
+    const response = await this.askNonStreaming(prompt, conversationId);
+    
+    const sentences = response.match(/[^.!?]+[.!?]+\s*/g) || [response];
+    
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i].trim();
+      const words = sentence.split(/\s+/);
       
-      const response = await this.askNonStreaming(prompt, conversationId);
-      
-      const sentences = response.match(/[^.!?]+[.!?]+\s*/g) || [response];
-      
-      for (let i = 0; i < sentences.length; i++) {
-        const sentence = sentences[i].trim();
-        const words = sentence.split(/\s+/);
-        
-        for (let j = 0; j < words.length; j++) {
-          yield {
-            choices: [{
-              delta: { 
-                content: words[j] + (j < words.length - 1 ? ' ' : '')
-              },
-              index: 0,
-              finish_reason: null
-            }]
-          };
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        
-        if (i < sentences.length - 1) {
-          yield {
-            choices: [{
-              delta: { content: ' ' },
-              index: 0,
-              finish_reason: null
-            }]
-          };
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
+      for (let j = 0; j < words.length; j++) {
+        yield {
+          choices: [{
+            delta: { 
+              content: words[j] + (j < words.length - 1 ? ' ' : '')
+            },
+            index: 0,
+            finish_reason: null
+          }]
+        };
+        await new Promise(resolve => setTimeout(resolve, 20));
       }
       
-      yield {
-        choices: [{
-          delta: {},
-          index: 0,
-          finish_reason: "stop"
-        }]
-      };
-    } catch (error) {
-      Logger.error('Error in generateCompletionStream:', error);
-      const customError = new Error('Failed to generate completion stream');
-      customError.name = 'ProviderError';
-      customError.originalError = error;
-      throw customError;
+      if (i < sentences.length - 1) {
+        yield {
+          choices: [{
+            delta: { content: ' ' },
+            index: 0,
+            finish_reason: null
+          }]
+        };
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
     }
+    
+    yield {
+      choices: [{
+        delta: {},
+        index: 0,
+        finish_reason: "stop"
+      }]
+    };
+  } catch (error) {
+    Logger.error('Error in generateCompletionStream:', error);
+    const customError = new Error('Failed to generate completion stream');
+    customError.name = 'ProviderError';
+    customError.originalError = error;
+    throw customError;
   }
+}
 
   formatMessages(messages) {
     if (Array.isArray(messages)) {

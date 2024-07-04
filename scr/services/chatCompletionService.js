@@ -2,85 +2,83 @@ const ProviderPool = require('../providers/ProviderPool');
 const { generateRandomId } = require('../helpers/utils');
 const Logger = require('../helpers/logger');
 
-class ChatCompletionService {
-  static async generateCompletion(model, messages, temperature, max_tokens, functions, function_call, timeout) {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out')), timeout)
-    );
-    
+class ChatCompletionService {static async generateCompletion(model, messages, temperature, max_tokens, functions, function_call, timeout) {
+  Logger.info('ChatCompletionService: Starting generateCompletion', { 
+    model, 
+    messagesCount: messages.length, 
+    temperature, 
+    max_tokens, 
+    timeout 
+  });
+  
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timed out')), timeout)
+  );
+  
+  try {
+    const result = await Promise.race([
+      this._generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call),
+      timeoutPromise
+    ]);
+    Logger.info('ChatCompletionService: Completion generated successfully');
+    return result;
+  } catch (error) {
+    Logger.error(`ChatCompletionService: Error generating completion: ${error.message}`, { stack: error.stack });
+    throw error;
+  }
+}
+
+  static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
     try {
-      const result = await Promise.race([
-        this._generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call),
-        timeoutPromise
-      ]);
-      return result;
+      const providers = ProviderPool.getProviders(model);
+      this.validateProviders(providers, model);
+      const randomProvider = this.getRandomProvider(providers);
+      Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
+      
+      const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
+      if (!providerResponse || !providerResponse.content) {
+        throw new Error('Provider returned empty response');
+      }
+      return this.formatResponse(model, providerResponse);
     } catch (error) {
-      Logger.error(`Error generating completion: ${error.message}`);
-      Logger.error(`Error stack: ${error.stack}`);
-      if (error.message === 'Request timed out') {
-        const timeoutError = new Error('Request timed out');
-        timeoutError.name = 'TimeoutError';
-        throw timeoutError;
-      }
-      if (error.name === 'ProviderError') {
-        throw error;
-      }
+      Logger.error(`Error in _generateCompletionInternal: ${error.message}`, { stack: error.stack });
       throw error;
     }
   }
-  static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
-    const providers = ProviderPool.getProviders(model);
-    this.validateProviders(providers, model);
-    const randomProvider = this.getRandomProvider(providers);
-    Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
-    
-    try {
-        const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
-        if (!providerResponse || !providerResponse.content) {
-            throw new Error('Provider returned empty response');
-        }
-        return this.formatResponse(model, providerResponse);
-    } catch (error) {
-        Logger.error(`Error from provider ${randomProvider.constructor.name}: ${error.message}`);
-        throw new Error(`Provider ${randomProvider.constructor.name} failed: ${error.message}`);
-    }
-}
 
   static async *generateCompletionStream(model, messages, temperature, max_tokens, functions, function_call, timeout) {
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Request timed out')), timeout)
     );
-
+  
     try {
       const streamGenerator = this._generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call);
       
       const responseId = `chatcmpl-${generateRandomId()}`;
       const created = Math.floor(Date.now() / 1000);
-
+  
       for await (const chunk of streamGenerator) {
         yield {
           id: responseId,
           object: "chat.completion.chunk",
           created: created,
           model: model,
-          choices: chunk.choices
+          choices: [
+            {
+              delta: chunk.choices[0].delta,
+              index: 0,
+              finish_reason: chunk.choices[0].finish_reason
+            }
+          ]
         };
-
+  
         await Promise.race([Promise.resolve(), timeoutPromise]);
       }
       
       Logger.success(`Streaming completion finished for model: ${model}`);
     } catch (error) {
       Logger.error(`Error in completion stream: ${error.message}`);
-      if (error.message === 'Request timed out') {
-        const timeoutError = new Error('Request timed out');
-        timeoutError.name = 'TimeoutError';
-        throw timeoutError;
-      }
-      const customError = new Error('Failed to generate completion stream');
-      customError.name = 'StreamCompletionError';
-      customError.originalError = error;
-      throw customError;
+      throw error;
     }
   }
 
@@ -97,13 +95,9 @@ class ChatCompletionService {
         }
     } catch (error) {
         Logger.error(`Error in provider ${randomProvider.constructor.name}: ${error.message}`);
-        if (error.message.includes('API Error')) {
-            throw new Error(`The external API is currently unavailable. Please try again later.`);
-        } else {
-            throw new Error(`An unexpected error occurred. Please try again later.`);
-        }
+        throw new Error(`An unexpected error occurred. Please try again later.`);
     }
-}
+  }
 
   static formatResponse(model, providerResponse) {
     if (!providerResponse || !providerResponse.content) {
@@ -149,17 +143,6 @@ class ChatCompletionService {
 
   static getRandomProvider(providers) {
     return providers[Math.floor(Math.random() * providers.length)];
-  }
-
-  static handleProviderError(error, operation) {
-    Logger.error(`Error in ${operation}: ${error.message}`);
-    if (error.name === 'ProviderError') {
-      throw error;
-    }
-    const customError = new Error(`Failed to ${operation}`);
-    customError.name = 'CompletionError';
-    customError.originalError = error;
-    throw customError;
   }
 }
 

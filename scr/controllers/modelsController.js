@@ -1,11 +1,18 @@
+const NodeCache = require('node-cache');
 const ModelsService = require('../services/modelsService');
 const Logger = require('../helpers/logger');
+
+const cache = new NodeCache({ stdTTL: 3600 }); // 1 hour
 
 exports.getModels = async (req, res, next) => {
   try {
     Logger.info('Fetching available models');
     
-    const formattedModels = await ModelsService.getModels();
+    let formattedModels = cache.get('models');
+    if (!formattedModels) {
+      formattedModels = await ModelsService.getModels();
+      cache.set('models', formattedModels);
+    }
     
     if (!formattedModels || formattedModels.length === 0) {
       const error = new Error('No models found');

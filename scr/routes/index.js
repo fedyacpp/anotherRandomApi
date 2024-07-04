@@ -8,6 +8,7 @@ const router = express.Router();
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.use('/models', modelsRouter);
+
 if (config.environment === 'development') {
     router.use('/chat', chatRoutes);
 }

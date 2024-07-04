@@ -1,8 +1,9 @@
 class ProviderInterface {
-  constructor() {
+  constructor(modelInfo) {
     if (this.constructor === ProviderInterface) {
       throw new Error("Can't instantiate abstract class!");
     }
+    this.modelInfo = modelInfo;
   }
 
   async generateCompletion(messages, temperature) {

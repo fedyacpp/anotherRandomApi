@@ -83,7 +83,7 @@ class Provider16 extends ProviderInterface {
         this.conversationHistory = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
     }
 
-    async *generateCompletionStream(messages, temperature) {
+    async *generateCompletionStream(messages, temperature, max_tokens, functions, function_call) {
         try {
             const session = await this.createSession();
             const ws = new WebSocket(`${this.ws_url}?EIO=4&transport=websocket&sid=${session.sid}`, {
@@ -96,7 +96,7 @@ class Provider16 extends ProviderInterface {
                 ws.on('error', reject);
             });
     
-            Logger.debug('WebSocket connected');
+            Logger.debug('Provider16: WebSocket connected');
     
             await this.sendAndWait(ws, "2probe", "3probe");
             ws.send("5");
@@ -123,8 +123,12 @@ class Provider16 extends ProviderInterface {
                     }
                 ],
                 temperature: temperature,
+                max_tokens: max_tokens,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             };
+    
+            if (functions) messageData.functions = functions;
+            if (function_call) messageData.function_call = function_call;
     
             ws.send("42" + JSON.stringify(["perplexity_labs", messageData]));
     
@@ -146,7 +150,7 @@ class Provider16 extends ProviderInterface {
                 try {
                     const data = JSON.parse(message.toString().slice(2))[1];
                     if (!data || !data.output) {
-                        Logger.error('No output in received data:', data);
+                        Logger.error('Provider16: No output in received data:', data);
                         continue;
                     }
     
@@ -175,18 +179,15 @@ class Provider16 extends ProviderInterface {
                         break;
                     }
                 } catch (error) {
-                    Logger.error(`Message parsing error: ${message}`, error);
+                    Logger.error(`Provider16: Message parsing error: ${message}`, error);
                     continue;
                 }
             }
     
             ws.close();
         } catch (error) {
-            Logger.error('Error in generateCompletionStream:', error);
-            const customError = new Error('Failed to generate completion stream');
-            customError.name = 'ProviderError';
-            customError.originalError = error;
-            throw customError;
+            Logger.error('Provider16: Error in generateCompletionStream:', error);
+            throw error;
         }
     }
 
@@ -214,10 +215,10 @@ class Provider16 extends ProviderInterface {
         });
     }
     
-    async generateCompletion(messages, temperature) {
+    async generateCompletion(messages, temperature, max_tokens, functions, function_call) {
         try {
             const completionChunks = [];
-            for await (const chunk of this.generateCompletionStream(messages, temperature)) {
+            for await (const chunk of this.generateCompletionStream(messages, temperature, max_tokens, functions, function_call)) {
                 if (chunk.choices && chunk.choices[0] && chunk.choices[0].delta && chunk.choices[0].delta.content) {
                     completionChunks.push(chunk.choices[0].delta.content);
                 }
@@ -240,7 +241,7 @@ class Provider16 extends ProviderInterface {
     
             return result;
         } catch (error) {
-            Logger.error('Error in generateCompletion:', error);
+            Logger.error('Provider16: Error in generateCompletion:', error);
             throw error;
         }
     }

@@ -164,11 +164,11 @@ class Provider4 extends ProviderInterface {
         }
     }
 
-    async *generateCompletionStream(messages, temperature) {
-        Logger.info('Generating completion stream');
+    async *generateCompletionStream(messages, temperature, max_tokens, functions, function_call) {
+        Logger.info('Provider4: Generating completion stream');
         await this.ensureSession();
-        const data = this.prepareRequestData(messages, temperature);
-
+        const data = this.prepareRequestData(messages, temperature, max_tokens, functions, function_call);
+    
         try {
             const response = await axios({
                 method: 'post',
@@ -178,25 +178,40 @@ class Provider4 extends ProviderInterface {
                 responseType: 'stream',
                 httpsAgent: this.agent
             });
-
+    
             let buffer = '';
             for await (const chunk of response.data) {
                 buffer += chunk.toString();
                 if (buffer.match(/[\s\.\?\!,;:]$/)) {
-                    yield this.formatStreamResponse(buffer);
+                    yield {
+                        choices: [{
+                            delta: { content: buffer },
+                            index: 0,
+                            finish_reason: null
+                        }]
+                    };
                     buffer = '';
                 }
             }
             if (buffer) {
-                yield this.formatStreamResponse(buffer);
+                yield {
+                    choices: [{
+                        delta: { content: buffer },
+                        index: 0,
+                        finish_reason: null
+                    }]
+                };
             }
-            yield this.formatStreamResponse(null, true);
+            yield {
+                choices: [{
+                    delta: {},
+                    index: 0,
+                    finish_reason: "stop"
+                }]
+            };
         } catch (error) {
-            Logger.error(`Error generating completion stream: ${error.message}`);
-            const customError = new Error('Failed to generate completion stream');
-            customError.name = 'StreamGenerationError';
-            customError.originalError = error;
-            throw customError;
+            Logger.error(`Provider4: Error generating completion stream: ${error.message}`);
+            throw error;
         }
     }
 
@@ -285,61 +300,40 @@ class Provider4 extends ProviderInterface {
         };
     }
 
-    formatStreamResponse(content, isFinished = false) {
-        if (isFinished) {
-          return {
-            choices: [{
-              delta: {},
-              index: 0,
-              finish_reason: "stop"
-            }]
-          };
-        }
-        return {
-          choices: [{
-            delta: { content: content },
-            index: 0,
-            finish_reason: null
-          }]
-        };
-    }
-
-    formatLine(line) {
-        return line.replace(/([a-z])([A-Z])/g, '$1 $2')
-                   .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-                   .replace(/([.,!?;:])([a-zA-Z])/g, '$1 $2');
-    }
-
-    async generateCompletion(messages, temperature) {
-        Logger.info('Generating completion');
+    async generateCompletion(messages, temperature, max_tokens, functions, function_call) {
+        Logger.info('Provider4: Generating completion');
         await this.ensureSession();
-        const data = this.prepareRequestData(messages, temperature);
-
+        const data = this.prepareRequestData(messages, temperature, max_tokens, functions, function_call);
+    
         try {
             const response = await this.makeRequest(`${this.baseUrl}/api/chat`, {
                 method: 'POST',
                 body: JSON.stringify(data),
             });
-
+    
             if (response.status !== 200) {
-                Logger.error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
+                Logger.error(`Provider4: HTTP error! status: ${response.status}, message: ${response.statusText}`);
                 throw new Error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
             }
-
+    
             const responseData = response.data;
-
+    
             if (typeof responseData !== 'string') {
-                Logger.error('Unexpected response type');
+                Logger.error('Provider4: Unexpected response type');
                 throw new Error('Unexpected response type');
             }
-
-            return { content: responseData.trim() };
+    
+            return {
+                content: responseData.trim(),
+                usage: {
+                    prompt_tokens: -1,
+                    completion_tokens: -1,
+                    total_tokens: -1
+                }
+            };
         } catch (error) {
-            Logger.error(`Error generating completion: ${error.message}`);
-            const customError = new Error('Failed to generate completion');
-            customError.name = 'CompletionGenerationError';
-            customError.originalError = error;
-            throw customError;
+            Logger.error(`Provider4: Error generating completion: ${error.message}`);
+            throw error;
         }
     }
 }

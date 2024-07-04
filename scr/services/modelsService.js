@@ -37,10 +37,7 @@ class ModelsService {
       return formattedModels;
     } catch (error) {
       Logger.error(`Error fetching models: ${error.message}`);
-      const customError = new Error('Failed to fetch models');
-      customError.name = 'ModelsRetrievalError';
-      customError.originalError = error;
-      throw customError;
+      throw error;
     }
   }
 
