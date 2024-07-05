@@ -55,8 +55,6 @@ class BrowserManager {
       await this.page.waitForSelector(this.options.waitForSelector, { timeout: this.options.timeout });
       
       Logger.info(`Selector "${this.options.waitForSelector}" found`);
-  
-      await this.page.waitForTimeout(5000);
 
       this.cookies = await this.page.cookies();
       if (this.cookies.length === 0) {
