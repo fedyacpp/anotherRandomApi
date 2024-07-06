@@ -70,23 +70,34 @@ class Server {
 
     async start() {
         try {
-            await proxyManager.initialize();
-            
             this.server = this.app.listen(config.port, () => {
                 Logger.success(`Server running on port ${config.port} in ${config.environment} mode`);
             });
 
             this.setupGracefulShutdown();
+
+            this.initializeProxyManager();
         } catch (error) {
             Logger.error('Failed to start server:', error);
             process.exit(1);
         }
     }
 
+    async initializeProxyManager() {
+        try {
+            await proxyManager.initialize();
+            Logger.success('Proxy manager initialized successfully');
+        } catch (error) {
+            Logger.error('Failed to initialize proxy manager:', error);
+        }
+    }
+
     setupGracefulShutdown() {
         const gracefulShutdown = () => {
             Logger.info('Received kill signal, shutting down gracefully');
-            proxyManager.stopPeriodicUpdate();
+            if (proxyManager.isInitialized()) {
+                proxyManager.stopPeriodicUpdate();
+            }
             this.server.close(() => {
                 Logger.info('Closed out remaining connections');
                 process.exit(0);
