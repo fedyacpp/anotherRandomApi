@@ -1,67 +1,96 @@
-body {
-    font-family: monospace;
-    background-color: #000;
-    color: #0f0;
+body, html {
     margin: 0;
     padding: 0;
+    height: 100%;
+    background-color: #000;
+    color: #00ff00;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: hidden;
 }
 
-#chat-container {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-#chat-output {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-#input-container {
-    display: flex;
+#terminal {
+    height: 100%;
     padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+#terminal-output {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+#input-line {
+    display: flex;
+    align-items: center;
+    position: relative;
 }
 
 #prompt {
-    color: #0f0;
+    color: #00ff00;
+    margin-right: 5px;
 }
 
-#user-input {
+#input-cursor {
+    width: 8px;
+    height: 15px;
+    background-color: #00ff00;
+    display: inline-block;
+    animation: blink 1s step-end infinite;
+    position: absolute;
+    bottom: 2px;
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+#terminal-input {
     flex-grow: 1;
-    background-color: #000;
+    background: transparent;
     border: none;
-    color: #0f0;
-    font-family: inherit;
-    font-size: inherit;
+    color: #00ff00;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    caret-color: transparent;
+}
+
+#terminal-input:focus {
     outline: none;
 }
 
-.bot-message {
-    color: #00f;
+.user-input {
+    color: #00ff00;
 }
 
-.user-message {
-    color: #0f0;
+.system-output {
+    color: #ffff00;
 }
 
-.system-message {
-    color: #ff0;
+.ai-output {
+    color: #00ffff;
 }
 
-#settings {
-    padding: 10px;
-    background-color: #111;
-    border-top: 1px solid #0f0;
+.loading {
+    color: #ff00ff;
 }
 
-#settings label {
-    margin-right: 10px;
+::-webkit-scrollbar {
+    width: 10px;
 }
 
-#settings select, #settings input {
-    background-color: #000;
-    color: #0f0;
-    border: 1px solid #0f0;
-    padding: 2px;
+::-webkit-scrollbar-track {
+    background: #000;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #00ff00;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00cc00;
 }

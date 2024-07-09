@@ -18,6 +18,7 @@ const Provider17 = require('./someprovider17');
 const Provider18 = require('./someprovider18');
 const Provider19 = require('./someprovider19');
 const Provider20 = require('./someprovider20');
+const Provider21 = require('./someprovider21');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
@@ -41,7 +42,8 @@ class ProviderPool {
     new Provider17(),
     new Provider18(),
     new Provider19(),
-    new Provider20()
+    new Provider20(),
+    new Provider21()
   ];
 
   static getProviders(modelIdentifier) {
