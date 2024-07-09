@@ -2,6 +2,7 @@ const axios = require('axios');
 const tough = require('tough-cookie');
 const { wrapper } = require('axios-cookiejar-support');
 const Logger = require('./logger');
+const proxyManager = require('./proxyManager');
 const fs = require('fs').promises;
 
 class AccountGenerator {
@@ -50,6 +51,8 @@ class AccountGenerator {
             '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(3) > select',
             '#__next > div > main > div > div > button'
         ];
+        this.accountCount = accountCount;
+        this.currentProxy = null;
     }   
 
     async initialize() {
@@ -83,6 +86,36 @@ class AccountGenerator {
             await this.updateSmsnatorCookiesAndToken();
         } catch (error) {
             Logger.error(`Error initializing session: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async initializeBrowser() {
+        try {
+            const { connect } = await import('puppeteer-real-browser');
+            const response = await connect({
+                headless: false,
+                turnstile: true,
+                args: this.currentProxy ? [`--proxy-server=${this.currentProxy.ip}:${this.currentProxy.port}`] : []
+            });
+            
+            const { page, browser, setTarget } = response;
+            this.browser = browser;
+            this.setTarget = setTarget;
+            this.yopmailPage = page;
+
+            this.setTarget({ status: false });
+            this.poePage = await this.browser.newPage();
+            this.smsnatorPage = await this.browser.newPage();
+            this.setTarget({ status: true });
+
+            if (this.currentProxy) {
+                await this.setProxyAuth(this.poePage);
+            }
+
+            await this.initializeSession();
+        } catch (error) {
+            Logger.error(`Error initializing browser: ${error.message}`);
             throw error;
         }
     }
@@ -231,124 +264,260 @@ class AccountGenerator {
         }
         throw new Error('No known element found within timeout');
     }
+    
+    async setProxyAuth(page) {
+        if (this.currentProxy.username && this.currentProxy.password) {
+            await page.authenticate({
+                username: this.currentProxy.username,
+                password: this.currentProxy.password
+            });
+        }
+    }
+
+    async changeProxy() {
+        if (!proxyManager.isInitialized()) {
+            await proxyManager.initialize();
+        }
+        const proxies = proxyManager.getProxies();
+        if (proxies.length > 0) {
+            this.currentProxy = proxies[Math.floor(Math.random() * proxies.length)];
+            Logger.info(`Changed proxy to: ${this.currentProxy.ip}:${this.currentProxy.port}`);
+        } else {
+            Logger.warn('No proxies available');
+        }
+    }
+
+    async checkForError(page, errorText) {
+        const errorSelector = '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > div.InfoText_infoText__Ux_Hl.InfoText_error__jaXia';
+        try {
+            await page.waitForSelector(errorSelector, { timeout: 5000 });
+            const errorElement = await page.$(errorSelector);
+            const errorTextContent = await page.evaluate(element => element.textContent, errorElement);
+            if (errorText && !errorTextContent.includes(errorText)) {
+                return false;
+            }
+            if (errorTextContent.includes('Too many attempts. Please wait and try again later.')) {
+                return true;
+            }
+            return false;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async checkForPhoneError(page, errorText) {
+        const errorSelector = '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > div.InfoText_infoText__Ux_Hl.InfoText_error__jaXia';
+        try {
+            await page.waitForSelector(errorSelector, { timeout: 5000 });
+            const errorElement = await page.$(errorSelector);
+            const errorTextContent = await page.evaluate(element => element.textContent, errorElement);
+            if (errorText && !errorTextContent.includes(errorText)) {
+                return false;
+            }
+            if (errorTextContent.includes('Verification with this phone number has been temporarily blocked. Please use email instead.')) {
+                return true;
+            }
+            return false;
+        } catch (error) {
+            return false;
+        }
+    }
 
     async generateAccount() {
-        try {
-            Logger.info("Navigating to Yopmail...");
-            await this.navigateToPage(this.yopmailPage, 'https://yopmail.com/');
-
-            const email = await this.getRandomEmail();
-            await this.waitForKnownElement(this.yopmailPage);
-            await this.yopmailPage.type('#login', email);
-            await this.safeClick(this.yopmailPage, '#refreshbut > button > i');
-
-            Logger.info("Navigating to Poe...");
-            await this.navigateToPage(this.poePage, 'https://poe.com');
-            
-            Logger.info("Entering email on Poe...");
-            await this.waitForKnownElement(this.poePage);
-            await this.poePage.type('#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > form > div > input', email);
-            await this.safeClick(this.poePage, '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
-
-            Logger.info("Switching back to Yopmail to get verification code...");
-            await this.yopmailPage.bringToFront();
-            
-            Logger.info("Getting email verification code...");
-            const emailCode = await this.getEmailVerificationCode();
-            
-            Logger.info("Switching back to Poe to enter verification code...");
-            await this.poePage.bringToFront();
-            
-            Logger.info("Entering email verification code on Poe...");
-            await this.waitForKnownElement(this.poePage);
-            await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', emailCode);
-            await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
-
-            Logger.info("Waiting for phone number input...");
-            await this.waitForKnownElement(this.poePage);
-
-            Logger.info("Getting phone number...");
-            const phoneNumber = await this.getPhoneNumber();
-            Logger.info(`Got phone number: ${phoneNumber}`);
-            
-            Logger.info("Entering phone number on Poe...");
-            await this.poePage.type('input[placeholder="Phone number"]', phoneNumber);
-            
-            Logger.info("Clicking 'Send code' button...");
-            await this.safeClick(this.poePage, '#__next > div > main > div > div > button');
-
-            Logger.info("Waiting for SMS verification code input...");
-            await this.waitForKnownElement(this.poePage);
+        let email, phoneNumber;
+        const maxAttempts = 3;
     
-            Logger.info("Getting SMS verification code...");
-            const smsCode = await this.getSmsVerificationCode(phoneNumber);
-            Logger.info(`Got SMS verification code: ${smsCode}`);
-            
-            Logger.info("Entering SMS verification code on Poe...");
-            await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', smsCode);
-    
-            Logger.info("Clicking 'Verify' button...");
-            await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
-    
-            const birthdaySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_';
-            const hasBirthdayInput = await this.poePage.$(birthdaySelector) !== null;
-
-            if (hasBirthdayInput) {
-                await this.handleBirthdayInput(this.poePage);
-            }
-
-            Logger.info("Waiting for login confirmation...");
-            let isLoggedIn = false;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                await this.waitForKnownElement(this.poePage);
-                isLoggedIn = true;
-                Logger.info("Login confirmation element found.");
-            } catch (error) {
-                Logger.warn("Login confirmation element not found within timeout.");
-            }
+                Logger.info(`Attempt ${attempt} of ${maxAttempts} to generate account`);
     
-            if (isLoggedIn) {
+                email = await this.createEmail();
+    
+                await this.registerOnPoe(email);
+    
+                await this.confirmEmail();
+    
+                phoneNumber = await this.enterPhoneNumber();
+    
+                await this.confirmPhoneNumber(phoneNumber);
+    
+                await this.fillAdditionalInfo();
+    
                 Logger.info(`Successfully created account with email: ${email} and phone: ${phoneNumber}`);
-                const cookies = await this.poePage.cookies();
-                const pbCookie = cookies.find(cookie => cookie.name === 'p-b');
-                const pLatCookie = cookies.find(cookie => cookie.name === 'p-lat');
-                if (pbCookie && pLatCookie) {
-                    await fs.writeFile(this.cookiesFile, JSON.stringify({ email, phoneNumber, pbCookie: pbCookie.value, pLatCookie: pLatCookie.value }, null, 2));
-                    Logger.info(`Saved p-b and p-lat cookies to ${this.cookiesFile}`);
-                } else {
-                    Logger.warn("p-b or p-lat cookie not found");
-                }
                 return { success: true, email, phoneNumber };
-            } else {
-                Logger.info(`Failed to create account with email: ${email} and phone: ${phoneNumber}`);
-                return { success: false, email, phoneNumber };
-            }
     
-        } catch (error) {
-            Logger.error(`Error creating account: ${error.message}`);
-            return { success: false, email: null, phoneNumber: null, error: error.message };
+            } catch (error) {
+                Logger.error(`Error during account generation (Attempt ${attempt}): ${error.message}`);
+    
+                const errorText = await this.poePage.evaluate(() => document.querySelector('.InfoText_error__jaXia')?.innerText);
+    
+                if (await this.checkForPhoneError(this.poePage, 'Verification with this phone number has been temporarily blocked. Please use email instead.')) {
+                    Logger.info('Phone number temporarily blocked. Changing phone number...');
+                    await this.changePhoneNumber();
+                } else if (await this.checkForError(this.poePage, 'Too many attempts. Please wait and try again later.')) {
+                    Logger.info('Too many attempts. Changing proxy and restarting browser...');
+                    await this.changeProxy();
+                    await this.closeBrowser();
+                    await this.initializeBrowser();
+                } else if (error.message.includes('Proxy error') || await this.checkForError(this.poePage) || await this.checkForPhoneError(this.poePage)) {
+                    Logger.info('Changing proxy and restarting browser...');
+                    await this.changeProxy();
+                    await this.closeBrowser();
+                    await this.initializeBrowser();
+                } else if (attempt === maxAttempts) {
+                    Logger.error('Max attempts reached. Failing account generation.');
+                    return { success: false, email: null, phoneNumber: null, error: error.message };
+                }
+            }
+        }
+    }    
+    
+    async createEmail() {
+        Logger.info("Creating email...");
+        await this.navigateToPage(this.yopmailPage, 'https://yopmail.com/');
+        await this.yopmailPage.bringToFront();
+        const email = await this.getRandomEmail();
+        await this.waitForKnownElement(this.yopmailPage);
+        await this.yopmailPage.type('#login', email);
+        await this.safeClick(this.yopmailPage, '#refreshbut > button > i');
+        return email;
+    }
+    
+    async registerOnPoe(email) {
+        Logger.info("Registering on Poe...");
+        await this.navigateToPage(this.poePage, 'https://poe.com');
+        await this.poePage.bringToFront();
+        await this.waitForKnownElement(this.poePage);
+        await this.poePage.type('#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > form > div > input', email);
+        await this.safeClick(this.poePage, '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
+        if (await this.checkForError(this.poePage)) {
+            throw new Error('Registration error on Poe');
+        }
+    }
+    
+    async confirmEmail() {
+        Logger.info("Confirming email...");
+        const emailCode = await this.getEmailVerificationCode();
+        await this.yopmailPage.bringToFront();
+        await this.waitForKnownElement(this.poePage);
+        await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', emailCode);
+        await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
+        if (await this.checkForError(this.poePage)) {
+            throw new Error('Email confirmation error');
+        }
+    }
+    
+    async enterPhoneNumber() {
+        await this.poePage.bringToFront();
+        Logger.info("Entering phone number...");
+        const maxPhoneAttempts = 5;
+        for (let i = 0; i < maxPhoneAttempts; i++) {
+            const phoneNumber = await this.getPhoneNumber();
+            await this.poePage.type('input[placeholder="Phone number"]', phoneNumber);
+            await this.safeClick(this.poePage, '#__next > div > main > div > div > button');
+            await this.poePage.waitForTimeout(3000);
+            if (!(await this.checkForError(this.poePage)) && !(await this.checkForPhoneError(this.poePage))) {
+                return phoneNumber;
+            }
+            Logger.warn("Phone number not accepted. Trying another one...");
+            await this.poePage.evaluate(() => {
+                document.querySelector('input[placeholder="Phone number"]').value = '';
+            });
+        }
+        throw new Error('Failed to find a valid phone number after maximum attempts');
+    }
+    
+    
+    async confirmPhoneNumber(phoneNumber) {
+        await this.poePage.bringToFront();
+        Logger.info("Confirming phone number...");
+        const smsCode = await this.getSmsVerificationCode(phoneNumber);
+        await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', smsCode);
+        await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
+        if (await this.checkForError(this.poePage)) {
+            throw new Error('Phone confirmation error');
+        }
+    }
+    
+    async fillAdditionalInfo() {
+        await this.poePage.bringToFront();
+        Logger.info("Filling additional info if required...");
+        const birthdaySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_';
+        const hasBirthdayInput = await this.poePage.$(birthdaySelector) !== null;
+        if (hasBirthdayInput) {
+            await this.handleBirthdayInput(this.poePage);
+        }
+    }
+    
+    async selectRandomOption(page, selector) {
+        await this.poePage.bringToFront();
+        await page.waitForSelector(selector);
+        const options = await page.$$eval(`${selector} option`, options => 
+            options.filter(option => !option.disabled).map(option => option.value)
+        );
+        const randomOption = options[Math.floor(Math.random() * options.length)];
+        await page.select(selector, randomOption);
+        return randomOption;
+    }
+    
+    async handleBirthdayInput(page) {
+        await this.poePage.bringToFront();
+        Logger.info("Handling birthday input...");
+        const monthSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(1) > select';
+        const daySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(2) > select';
+        const yearSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(3) > select';
+    
+        await this.selectRandomOption(page, monthSelector);
+        await this.selectRandomOption(page, daySelector);
+    
+        const currentYear = new Date().getFullYear();
+        const minYear = currentYear - 100;
+        const maxYear = 2005;
+        const randomYear = Math.floor(Math.random() * (maxYear - minYear + 1)) + minYear;
+        await page.select(yearSelector, randomYear.toString());
+    
+        Logger.info(`Selected birthday: ${await page.$eval(monthSelector, el => el.value)}/${await page.$eval(daySelector, el => el.value)}/${randomYear}`);
+    
+        await this.safeClick(page, '#__next > div > main > div > div > button');
+    }
+    
+
+    async closeBrowser() {
+        if (this.browser) {
+            await this.browser.close();
+            this.browser = null;
+            this.yopmailPage = null;
+            this.poePage = null;
+            this.smsnatorPage = null;
         }
     }
 
     async run() {
         try {
-            await this.initialize();
             for (let i = 0; i < this.accountCount; i++) {
+                Logger.info(`Initializing browser for account ${i + 1} of ${this.accountCount}`);
+                await this.initializeBrowser();
+                
                 Logger.info(`Generating account ${i + 1} of ${this.accountCount}`);
                 const result = await this.generateAccount();
+                
                 if (result.success) {
                     Logger.info(`Account created successfully. Email: ${result.email}, Phone: ${result.phoneNumber}`);
                 } else {
                     Logger.error(`Failed to create account. Error: ${result.error}`);
                 }
+                
+                Logger.info(`Closing browser for account ${i + 1}`);
+                await this.closeBrowser();
+                
+                const delay = 2000;
+                Logger.info(`Waiting for ${delay / 1000} seconds before next account creation...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         } catch (error) {
             Logger.error(`Unhandled error in account generation: ${error.message}`);
         } finally {
-            if (this.browser) {
-                await this.browser.close();
-            }
+            await this.closeBrowser();
         }
     }
 
