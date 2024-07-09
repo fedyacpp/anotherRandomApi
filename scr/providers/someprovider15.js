@@ -14,7 +14,7 @@ class Provider15 extends ProviderInterface {
         this.modelInfo = {
             modelId: "llama-3-70b-instruct",
             name: "llama-3-70b-instruct",
-            description: "Meta's open-source model",
+            description: "Meta's open-source instruct model",
             context_window: 8000,
             author: "Meta",
             unfiltered: true,

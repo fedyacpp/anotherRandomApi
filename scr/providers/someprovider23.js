@@ -1,15 +1,15 @@
 const axios = require('axios');
 const Logger = require('../helpers/logger');
 
-class Provider21 {
+class provider23 {
   constructor() {
     this.baseUrl = 'https://duckduckgo.com/duckchat/v1';
     this.modelInfo = {
-      modelId: "gpt-3.5-turbo-0125",
-      name: "gpt-3.5-turbo-0125",
-      description: "Latest snapshot of OpenAI's GPT-3.5 Turbo 16k model",
-      context_window: "16000",
-      author: "OpenAI",
+      modelId: "llama-3-70b-chat",
+      name: "llama-3-70b-chat",
+      description: "Meta's open-source chat model",
+      context_window: "8000",
+      author: "Meta",
       unfiltered: true,
       reverseStatus: "Testing",
       devNotes: ""
@@ -30,10 +30,10 @@ class Provider21 {
         throw new Error('Failed to extract vqd from status response');
       }
 
-      Logger.info(`Provider21: Successfully extracted initial vqd: ${this.vqd}`);
+      Logger.info(`provider23: Successfully extracted initial vqd: ${this.vqd}`);
       return this.vqd;
     } catch (error) {
-      Logger.error('Provider21: Error in getInitialVqd:', error);
+      Logger.error('provider23: Error in getInitialVqd:', error);
       throw error;
     }
   }
@@ -60,11 +60,11 @@ class Provider21 {
 
       const url = `${this.baseUrl}/chat`;
       const payload = {
-        model: this.modelInfo.modelId,
+        model: 'meta-llama/Llama-3-70b-chat-hf',
         messages: payloadMessages
       };
 
-      Logger.info(`Provider21: Sending stream request to ${url} with payload: ${JSON.stringify(payload)}`);
+      Logger.info(`provider23: Sending stream request to ${url} with payload: ${JSON.stringify(payload)}`);
 
       const response = await axios.post(url, payload, {
         headers: { ...this.getChatHeaders(this.vqd), 'x-vqd-4': this.vqd },
@@ -73,7 +73,7 @@ class Provider21 {
 
       if (response.headers['x-vqd-4']) {
         this.vqd = response.headers['x-vqd-4'];
-        Logger.info(`Provider21: Updated vqd from response: ${this.vqd}`);
+        Logger.info(`provider23: Updated vqd from response: ${this.vqd}`);
       }
 
       let assistantResponse = '';
@@ -95,7 +95,7 @@ class Provider21 {
                 };
               }
             } catch (parseError) {
-              Logger.error('Provider21: Error parsing SSE data:', parseError);
+              Logger.error('provider23: Error parsing SSE data:', parseError);
             }
           }
         }
@@ -141,11 +141,11 @@ class Provider21 {
 
       const url = `${this.baseUrl}/chat`;
       const payload = {
-        model: this.modelInfo.modelId,
+        model: 'meta-llama/Llama-3-70b-chat-hf',
         messages: payloadMessages
       };
 
-      Logger.info(`Provider21: Sending request to ${url} with payload: ${JSON.stringify(payload)}`);
+      Logger.info(`provider23: Sending request to ${url} with payload: ${JSON.stringify(payload)}`);
 
       const response = await axios.post(url, payload, {
         headers: { ...this.getChatHeaders(this.vqd), 'x-vqd-4': this.vqd }
@@ -153,7 +153,7 @@ class Provider21 {
 
       if (response.headers['x-vqd-4']) {
         this.vqd = response.headers['x-vqd-4'];
-        Logger.info(`Provider21: Updated vqd from response: ${this.vqd}`);
+        Logger.info(`provider23: Updated vqd from response: ${this.vqd}`);
       }
 
       const data = response.data;
@@ -223,17 +223,17 @@ class Provider21 {
   }
 
   handleError(error) {
-    Logger.error('Provider21: Error in request:', error);
+    Logger.error('provider23: Error in request:', error);
     if (error.response) {
-      Logger.error(`Provider21: Error response status: ${error.response.status}`);
-      Logger.error(`Provider21: Error response headers: ${JSON.stringify(error.response.headers)}`);
-      Logger.error(`Provider21: Error response data: ${error.response.data}`);
+      Logger.error(`provider23: Error response status: ${error.response.status}`);
+      Logger.error(`provider23: Error response headers: ${JSON.stringify(error.response.headers)}`);
+      Logger.error(`provider23: Error response data: ${error.response.data}`);
     } else if (error.request) {
-      Logger.error('Provider21: Error request:', error.request);
+      Logger.error('provider23: Error request:', error.request);
     } else {
-      Logger.error('Provider21: Error message:', error.message);
+      Logger.error('provider23: Error message:', error.message);
     }
   }
 }
 
-module.exports = Provider21;
+module.exports = provider23;
