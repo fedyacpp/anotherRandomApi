@@ -374,8 +374,8 @@ class AccountGenerator {
     
     async createEmail() {
         Logger.info("Creating email...");
-        await this.navigateToPage(this.yopmailPage, 'https://yopmail.com/');
         await this.yopmailPage.bringToFront();
+        await this.navigateToPage(this.yopmailPage, 'https://yopmail.com/');
         const email = await this.getRandomEmail();
         await this.waitForKnownElement(this.yopmailPage);
         await this.yopmailPage.type('#login', email);
@@ -385,8 +385,8 @@ class AccountGenerator {
     
     async registerOnPoe(email) {
         Logger.info("Registering on Poe...");
-        await this.navigateToPage(this.poePage, 'https://poe.com');
         await this.poePage.bringToFront();
+        await this.navigateToPage(this.poePage, 'https://poe.com');
         await this.waitForKnownElement(this.poePage);
         await this.poePage.type('#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > form > div > input', email);
         await this.safeClick(this.poePage, '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
@@ -397,8 +397,9 @@ class AccountGenerator {
     
     async confirmEmail() {
         Logger.info("Confirming email...");
-        const emailCode = await this.getEmailVerificationCode();
         await this.yopmailPage.bringToFront();
+        const emailCode = await this.getEmailVerificationCode();
+        await this.poePage.bringToFront();
         await this.waitForKnownElement(this.poePage);
         await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', emailCode);
         await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
@@ -429,8 +430,8 @@ class AccountGenerator {
     
     
     async confirmPhoneNumber(phoneNumber) {
-        await this.poePage.bringToFront();
         Logger.info("Confirming phone number...");
+        await this.poePage.bringToFront();
         const smsCode = await this.getSmsVerificationCode(phoneNumber);
         await this.poePage.type('#__next > div > main > div > div > div.SignupOrLoginWithCodeSection_inputAndMetaTextGroup__JNjDQ > form > input', smsCode);
         await this.safeClick(this.poePage, '#__next > div > main > div > div > button.Button_buttonBase__Bv9Vx.Button_primary__6UIn0');
@@ -440,8 +441,8 @@ class AccountGenerator {
     }
     
     async fillAdditionalInfo() {
-        await this.poePage.bringToFront();
         Logger.info("Filling additional info if required...");
+        await this.poePage.bringToFront();
         const birthdaySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_';
         const hasBirthdayInput = await this.poePage.$(birthdaySelector) !== null;
         if (hasBirthdayInput) {
