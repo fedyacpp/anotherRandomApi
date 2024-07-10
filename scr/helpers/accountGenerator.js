@@ -2,8 +2,8 @@ const axios = require('axios');
 const tough = require('tough-cookie');
 const { wrapper } = require('axios-cookiejar-support');
 const Logger = require('./logger');
-const proxyManager = require('./proxyManager');
 const fs = require('fs').promises;
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 class AccountGenerator {
     constructor(accountCount) {
@@ -12,6 +12,15 @@ class AccountGenerator {
         this.domainFile = 'domain_results.json';
         this.smsnatorCookieJar = new tough.CookieJar();
         this.poeCookieJar = new tough.CookieJar();
+        this.proxyConfig = {
+            protocol: 'socks5',
+            host: '',
+            port: 80,
+            auth: {
+                username: '',
+                password: ''
+            }
+        };
         this.smsnatorAxios = wrapper(axios.create({ 
             jar: this.smsnatorCookieJar,
             withCredentials: true,
@@ -49,18 +58,28 @@ class AccountGenerator {
             '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(1) > select',
             '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(2) > select',
             '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(3) > select',
+            '#root > div > main > div.homepage--top > div > div > div > div.mb-3.card > h5',
             '#__next > div > main > div > div > button'
         ];
         this.accountCount = accountCount;
         this.currentProxy = null;
-    }   
+    }
 
     async initialize() {
         try {
             const { connect } = await import('puppeteer-real-browser');
+            
+            const proxyUrl = this.getProxyUrl();
+            Logger.info(`Initializing with proxy: ${proxyUrl}`);
+
             const response = await connect({
                 headless: false,
-                turnstile: true
+                turnstile: true,
+                args: [
+                    `--proxy-server=${this.proxyConfig.host}:${this.proxyConfig.port}`,
+                    '--ignore-certificate-errors',
+                    '--ignore-certificate-errors-spki-list'
+                ]
             });
             
             const { page, browser, setTarget } = response;
@@ -68,10 +87,17 @@ class AccountGenerator {
             this.setTarget = setTarget;
             this.yopmailPage = page;
 
+            await this.setProxyAuthentication(this.yopmailPage);
+
             this.setTarget({ status: false });
             this.poePage = await this.browser.newPage();
             this.smsnatorPage = await this.browser.newPage();
             this.setTarget({ status: true });
+
+            await this.setProxyAuthentication(this.poePage);
+            await this.setProxyAuthentication(this.smsnatorPage);
+
+            await this.testProxyConnection();
 
             await this.initializeSession();
         } catch (error) {
@@ -80,82 +106,60 @@ class AccountGenerator {
         }
     }
 
+    async setProxyAuthentication(page) {
+        await page.authenticate({
+            username: this.proxyConfig.auth.username,
+            password: this.proxyConfig.auth.password
+        });
+    }
+
+    async testProxyConnection() {
+        try {
+            const response = await axios.get('https://api.ipify.org?format=json', {
+                httpsAgent: new HttpsProxyAgent(this.getProxyUrl()),
+                timeout: 5000
+            });
+            Logger.info(`Proxy connection successful. IP: ${response.data.ip}`);
+        } catch (error) {
+            Logger.error(`Proxy connection test failed: ${error.message}`);
+            throw new Error('Proxy connection test failed');
+        }
+    }
+
     async initializeSession() {
         try {
-            await this.smsnatorPage.goto('https://smsnator.online');
+            await this.smsnatorPage.setDefaultNavigationTimeout(this.navigationTimeout);
+            const response = await this.smsnatorPage.goto('https://smsnator.online', { 
+                waitUntil: 'networkidle0',
+                timeout: this.navigationTimeout
+            });
+            
+            if (!response || !response.ok()) {
+                throw new Error(`Failed to load smsnator.online: ${response ? response.status() : 'No response'}`);
+            }
+            
+            Logger.info('Successfully loaded smsnator.online');
             await this.updateSmsnatorCookiesAndToken();
+    
+            await this.smsnatorPage.evaluate(() => {
+                setTimeout(() => {
+                    if (window.chrome && window.chrome.debugger) {
+                        window.chrome.debugger.attach({tabId: 1}, '1.3', () => {
+                            console.log('DevTools opened');
+                        });
+                    }
+                }, 5000);
+            });
+    
+            Logger.info('Opened developer console after 5 seconds');
         } catch (error) {
             Logger.error(`Error initializing session: ${error.message}`);
-            throw error;
         }
     }
 
-    async initializeBrowser() {
-        try {
-            const { connect } = await import('puppeteer-real-browser');
-            const maxAttempts = 3;
-            let attempt = 0;
-            
-            while (attempt < maxAttempts) {
-                try {
-                    const response = await connect({
-                        headless: false,
-                        turnstile: true,
-                        args: this.currentProxy ? [
-                            `--proxy-server=${this.currentProxy.ip}:${this.currentProxy.port}`,
-                            '--ignore-certificate-errors',
-                            '--ignore-certificate-errors-spki-list'
-                        ] : []
-                    });
-                    
-                    const { page, browser, setTarget } = response;
-                    this.browser = browser;
-                    this.setTarget = setTarget;
-                    this.yopmailPage = page;
-
-                    this.setTarget({ status: false });
-                    this.poePage = await this.browser.newPage();
-                    this.smsnatorPage = await this.browser.newPage();
-                    this.setTarget({ status: true });
-
-                    if (this.currentProxy) {
-                        await this.setProxyAuth(this.poePage);
-                        await this.setProxyAuth(this.smsnatorPage);
-                        await this.setProxyAuth(this.yopmailPage);
-                    }
-
-                    await this.testConnection();
-
-                    await this.initializeSession();
-                    return;
-                } catch (error) {
-                    Logger.error(`Error initializing browser (Attempt ${attempt + 1}): ${error.message}`);
-                    attempt++;
-                    if (attempt < maxAttempts) {
-                        Logger.info('Changing proxy and retrying...');
-                        await this.changeProxy();
-                    }
-                }
-            }
-            throw new Error('Failed to initialize browser after maximum attempts');
-        } catch (error) {
-            Logger.error(`Critical error initializing browser: ${error.message}`);
-            throw error;
-        }
-    }
-
-    
-    async testConnection() {
-        const testUrls = ['https://smsnator.online', 'https://poe.com', 'https://yopmail.com'];
-        for (const url of testUrls) {
-            try {
-                await this.poePage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                Logger.info(`Successfully connected to ${url}`);
-            } catch (error) {
-                Logger.error(`Failed to connect to ${url}: ${error.message}`);
-                throw error;
-            }
-        }
+    getProxyUrl() {
+        const { protocol, host, port, auth } = this.proxyConfig;
+        return `${protocol}://${auth.username}:${auth.password}@${host}:${port}`;
     }
 
     async updateSmsnatorCookiesAndToken() {
@@ -283,11 +287,17 @@ class AccountGenerator {
     }
 
     async safeClick(page, selector) {
-        await page.waitForSelector(selector, { visible: true, timeout: 10000 });
-        await page.evaluate((sel) => {
-            const element = document.querySelector(sel);
-            if (element) element.click();
-        }, selector);
+        try {
+            await page.waitForSelector(selector, { visible: true, timeout: 10000 });
+            await page.evaluate((sel) => {
+                const element = document.querySelector(sel);
+                if (element) element.click();
+            }, selector);
+            Logger.info(`Clicked on selector: ${selector}`);
+        } catch (error) {
+            Logger.error(`Error clicking on selector ${selector}: ${error.message}`);
+            throw error;
+        }
     }
 
     async waitForKnownElement(page, timeout = 30000) {
@@ -295,31 +305,32 @@ class AccountGenerator {
         while (Date.now() - startTime < timeout) {
             for (const selector of this.knownElements) {
                 if (await page.$(selector)) {
+                    Logger.info(`Found known element: ${selector}`);
                     return selector;
                 }
             }
             await page.waitForTimeout(1000);
         }
+        Logger.error('No known element found within timeout');
         throw new Error('No known element found within timeout');
     }
     
     async setProxyAuth(page) {
-        if (this.currentProxy && this.currentProxy.username && this.currentProxy.password) {
-            await page.authenticate({
-                username: this.currentProxy.username,
-                password: this.currentProxy.password
-            });
-        }
+        await page.authenticate({
+            username: this.proxyConfig.auth.username,
+            password: this.proxyConfig.auth.password
+        });
     }
 
     async changeProxy() {
-        if (!proxyManager.isInitialized()) {
-            await proxyManager.initialize();
-        }
         const proxies = proxyManager.getProxies();
         if (proxies.length > 0) {
             this.currentProxy = proxies[Math.floor(Math.random() * proxies.length)];
             Logger.info(`Changed proxy to: ${this.currentProxy.ip}:${this.currentProxy.port}`);
+            
+            await this.setProxyAuth(this.poePage);
+            await this.setProxyAuth(this.smsnatorPage);
+            await this.setProxyAuth(this.yopmailPage);
         } else {
             Logger.warn('No proxies available');
             this.currentProxy = null;
@@ -383,40 +394,63 @@ class AccountGenerator {
                 Logger.info(`Attempt ${attempt} of ${maxAttempts} to generate account`);
     
                 email = await this.createEmail();
-    
+                Logger.info(`Email created: ${email}`);
+
                 await this.registerOnPoe(email);
-    
+                Logger.info('Registered on Poe');
+
                 await this.confirmEmail();
-    
+                Logger.info('Email confirmed');
+
                 phoneNumber = await this.enterPhoneNumber();
-    
+                Logger.info(`Phone number entered: ${phoneNumber}`);
+
                 await this.confirmPhoneNumber(phoneNumber);
-    
+                Logger.info('Phone number confirmed');
+
                 await this.fillAdditionalInfo();
+                Logger.info('Additional info filled');
     
                 Logger.info(`Successfully created account with email: ${email} and phone: ${phoneNumber}`);
     
                 await this.poePage.goto('https://poe.com');
-                await this.poePage.waitForTimeout(5000);
+                await this.poePage.waitForTimeout(7000);
     
                 const cookies = await this.poePage.cookies();
                 const requiredCookies = cookies.filter(cookie => ['p-b', 'p-lat'].includes(cookie.name));
-    
-                const fs = require('fs').promises;
-                await fs.writeFile('poe_cookies.json', JSON.stringify(requiredCookies, null, 2));
-    
-                Logger.info('Saved p-b and p-lat cookies to poe_cookies.json');
+            
+                let existingData = [];
+                try {
+                    const fileContent = await fs.readFile('poe_cookies.json', 'utf8');
+                    existingData = JSON.parse(fileContent);
+                } catch (error) {
+                    Logger.info('No existing cookie file found or error reading it. Creating new file.');
+                }
+            
+                const updatedData = [...existingData, ...requiredCookies];
+            
+                await fs.writeFile('poe_cookies.json', JSON.stringify(updatedData, null, 2));
+            
+                Logger.info('Added new p-b and p-lat cookies to poe_cookies.json');
     
                 return { success: true, email, phoneNumber };
     
             } catch (error) {
                 Logger.error(`Error during account generation (Attempt ${attempt}): ${error.message}`);
-    
+                Logger.error(`Stack trace: ${error.stack}`);
+
+                const screenshot = await this.poePage.screenshot({ fullPage: true });
+                await fs.writeFile(`error_screenshot_${Date.now()}.png`, screenshot);
+                Logger.info(`Saved error screenshot`);
+
+                const html = await this.poePage.content();
+                await fs.writeFile(`error_html_${Date.now()}.html`, html);
+                Logger.info(`Saved error HTML`);
+
                 if (await this.checkForGeneralError()) {
-                    Logger.info('General error detected. Changing proxy and restarting browser...');
-                    await this.changeProxy();
+                    Logger.info('General error detected. Restarting browser...');
                     await this.closeBrowser();
-                    await this.initializeBrowser();
+                    await this.initialize();
                 } else if (await this.checkForPhoneError()) {
                     Logger.info('Phone number error detected. Changing phone number...');
                     phoneNumber = await this.getPhoneNumber();
@@ -538,44 +572,71 @@ class AccountGenerator {
     
     async fillAdditionalInfo() {
         Logger.info("Filling additional info if required...");
-        await this.poePage.bringToFront();
-        const birthdaySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_';
-        const hasBirthdayInput = await this.poePage.$(birthdaySelector) !== null;
-        if (hasBirthdayInput) {
-            await this.handleBirthdayInput(this.poePage);
+        
+        try {
+            const result = await Promise.race([
+                this.poePage.waitForSelector('#__next > div > main > div > div > div.SignupWithBirthdaySection_titleWrapper__oRGHc', { timeout: 10000 }),
+                this.poePage.waitForNavigation({ timeout: 10000 })
+            ]);
+    
+            if (result && result.constructor.name === 'ElementHandle') {
+                Logger.info("Birthday input detected. Handling birthday...");
+                await this.handleBirthdayInput(this.poePage);
+            } else {
+                Logger.info("No birthday input detected. Skipping birthday handling.");
+            }
+        } catch (error) {
+            Logger.warn(`Error while checking for additional info: ${error.message}`);
+            Logger.info("Proceeding without handling birthday input.");
+        }
+    
+        Logger.info("Additional info filled");
+    }
+    
+    async handleBirthdayInput(page) {
+        Logger.info("Handling birthday input...");
+    
+        const monthSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(1) > select';
+        const daySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(2) > select';
+        const yearSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(3) > select';
+        const confirmButtonSelector = '#__next > div > main > div > div > button';
+    
+        try {
+            await page.waitForSelector(monthSelector, { visible: true, timeout: 5000 });
+    
+            await page.select(monthSelector, await this.selectRandomOption(page, monthSelector));
+            Logger.info("Month selected");
+            await page.waitForTimeout(500);
+    
+            await page.select(daySelector, await this.selectRandomOption(page, daySelector));
+            Logger.info("Day selected");
+            await page.waitForTimeout(500);
+    
+            const years = await page.$$eval(`${yearSelector} option`, options => 
+                options.filter(option => !option.disabled).map(option => option.value)
+            );
+            const validYears = years.filter(year => year >= 1970 && year <= 2005);
+            const randomYear = validYears[Math.floor(Math.random() * validYears.length)];
+            await page.select(yearSelector, randomYear);
+            Logger.info(`Year selected: ${randomYear}`);
+            await page.waitForTimeout(500);
+    
+            await this.safeClick(page, confirmButtonSelector);
+            Logger.info("Clicked confirm button");
+    
+            await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 10000 });
+            Logger.info("Navigation after birthday input completed");
+        } catch (error) {
+            Logger.error(`Error in handleBirthdayInput: ${error.message}`);
+            throw error;
         }
     }
     
     async selectRandomOption(page, selector) {
-        await this.poePage.bringToFront();
-        await page.waitForSelector(selector);
         const options = await page.$$eval(`${selector} option`, options => 
-            options.filter(option => !option.disabled).map(option => option.value)
+            options.filter(option => !option.disabled && option.value !== "").map(option => option.value)
         );
-        const randomOption = options[Math.floor(Math.random() * options.length)];
-        await page.select(selector, randomOption);
-        return randomOption;
-    }
-    
-    async handleBirthdayInput(page) {
-        await this.poePage.bringToFront();
-        Logger.info("Handling birthday input...");
-        const monthSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(1) > select';
-        const daySelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(2) > select';
-        const yearSelector = '#__next > div > main > div > div > div.SignupWithBirthdaySection_selectAndMetaTextGroup__5T4M_ > form > div:nth-child(3) > select';
-    
-        await this.selectRandomOption(page, monthSelector);
-        await this.selectRandomOption(page, daySelector);
-    
-        const currentYear = new Date().getFullYear();
-        const minYear = currentYear - 100;
-        const maxYear = 2005;
-        const randomYear = Math.floor(Math.random() * (maxYear - minYear + 1)) + minYear;
-        await page.select(yearSelector, randomYear.toString());
-    
-        Logger.info(`Selected birthday: ${await page.$eval(monthSelector, el => el.value)}/${await page.$eval(daySelector, el => el.value)}/${randomYear}`);
-    
-        await this.safeClick(page, '#__next > div > main > div > div > button');
+        return options[Math.floor(Math.random() * options.length)];
     }
     
 
@@ -592,8 +653,8 @@ class AccountGenerator {
     async run() {
         try {
             for (let i = 0; i < this.accountCount; i++) {
-                Logger.info(`Initializing browser for account ${i + 1} of ${this.accountCount}`);
-                await this.initializeBrowser();
+                Logger.info(`Initializing for account ${i + 1} of ${this.accountCount}`);
+                await this.initialize();
                 
                 Logger.info(`Generating account ${i + 1} of ${this.accountCount}`);
                 const result = await this.generateAccount();

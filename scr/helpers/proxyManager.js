@@ -7,7 +7,7 @@ class ProxyManager {
         this.proxyUrl = 'https://sunny9577.github.io/proxy-scraper/generated/http_proxies.txt';
         this.maxProxiesToFetch = 300;
         this.maxProxiesToKeep = 50;
-        this.testUrls = ['https://smsnator.online', 'https://poe.com', 'https://yopmail.com'];
+        this.testUrl = 'http://httpbin.org/ip';
         this.timeout = 3000;
     }
 
@@ -30,16 +30,14 @@ class ProxyManager {
     async testProxy(proxy) {
         const startTime = Date.now();
         try {
-            for (const url of this.testUrls) {
-                await axios.get(url, {
-                    proxy: {
-                        host: proxy.ip,
-                        port: proxy.port,
-                        protocol: 'http'
-                    },
-                    timeout: this.timeout
-                });
-            }
+            await axios.get(this.testUrl, {
+                proxy: {
+                    host: proxy.ip,
+                    port: proxy.port,
+                    protocol: proxy.protocol
+                },
+                timeout: this.timeout
+            });
             const responseTime = Date.now() - startTime;
             return { ...proxy, responseTime };
         } catch (error) {
@@ -47,7 +45,7 @@ class ProxyManager {
         }
     }
 
-    async getFastestProxies() {
+    async getProxy() {
         const rawProxies = await this.fetchProxies();
         Logger.info(`Fetched ${rawProxies.length} proxies. Testing...`);
 
@@ -67,7 +65,7 @@ class ProxyManager {
     async initialize() {
         try {
             Logger.info('Initializing proxy manager...');
-            this.proxyList = await this.getFastestProxies();
+            this.proxyList = await this.getProxy();
             Logger.info('Proxy manager initialized successfully');
 
         } catch (error) {
