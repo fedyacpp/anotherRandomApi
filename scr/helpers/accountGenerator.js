@@ -288,15 +288,21 @@ class AccountGenerator {
     }
 
     async checkForError(page, errorText) {
-        const errorSelector = '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > div.InfoText_infoText__Ux_Hl.InfoText_error__jaXia';
         try {
-            await page.waitForSelector(errorSelector, { timeout: 5000 });
-            const errorElement = await page.$(errorSelector);
-            const errorTextContent = await page.evaluate(element => element.textContent, errorElement);
-            if (errorText && !errorTextContent.includes(errorText)) {
-                return false;
-            }
-            if (errorTextContent.includes('Too many attempts. Please wait and try again later.')) {
+            const errorTextContent = await page.evaluate(() => {
+                const elements = document.querySelectorAll('*');
+                for (const element of elements) {
+                    if (element.textContent.includes('Too many attempts. Please wait and try again later.')) {
+                        return element.textContent;
+                    }
+                }
+                return null;
+            });
+    
+            if (errorTextContent) {
+                if (errorText && !errorTextContent.includes(errorText)) {
+                    return false;
+                }
                 return true;
             }
             return false;
@@ -304,17 +310,23 @@ class AccountGenerator {
             return false;
         }
     }
-
+    
     async checkForPhoneError(page, errorText) {
-        const errorSelector = '#__next > div > main > div.LoggedOutSection_main__qRdCR > div > div.MainSignupLoginSection_inputAndMetaTextGroup__LqKA8 > div.InfoText_infoText__Ux_Hl.InfoText_error__jaXia';
         try {
-            await page.waitForSelector(errorSelector, { timeout: 5000 });
-            const errorElement = await page.$(errorSelector);
-            const errorTextContent = await page.evaluate(element => element.textContent, errorElement);
-            if (errorText && !errorTextContent.includes(errorText)) {
-                return false;
-            }
-            if (errorTextContent.includes('Verification with this phone number has been temporarily blocked. Please use email instead.')) {
+            const errorTextContent = await page.evaluate(() => {
+                const elements = document.querySelectorAll('*');
+                for (const element of elements) {
+                    if (element.textContent.includes('Verification with this phone number has been temporarily blocked. Please use email instead.')) {
+                        return element.textContent;
+                    }
+                }
+                return null;
+            });
+    
+            if (errorTextContent) {
+                if (errorText && !errorTextContent.includes(errorText)) {
+                    return false;
+                }
                 return true;
             }
             return false;
@@ -344,6 +356,18 @@ class AccountGenerator {
                 await this.fillAdditionalInfo();
     
                 Logger.info(`Successfully created account with email: ${email} and phone: ${phoneNumber}`);
+    
+                await this.poePage.goto('https://poe.com');
+                await this.poePage.waitForTimeout(5000);
+    
+                const cookies = await this.poePage.cookies();
+                const requiredCookies = cookies.filter(cookie => ['p-b', 'p-lat'].includes(cookie.name));
+    
+                const fs = require('fs').promises;
+                await fs.writeFile('poe_cookies.json', JSON.stringify(requiredCookies, null, 2));
+    
+                Logger.info('Saved p-b and p-lat cookies to poe_cookies.json');
+    
                 return { success: true, email, phoneNumber };
     
             } catch (error) {
@@ -370,7 +394,7 @@ class AccountGenerator {
                 }
             }
         }
-    }    
+    }  
     
     async createEmail() {
         Logger.info("Creating email...");
