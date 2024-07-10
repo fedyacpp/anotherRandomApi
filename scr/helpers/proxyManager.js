@@ -6,8 +6,8 @@ class ProxyManager {
         this.proxyList = [];
         this.proxyUrl = 'https://sunny9577.github.io/proxy-scraper/generated/http_proxies.txt';
         this.maxProxiesToFetch = 300;
-        this.maxProxiesToKeep = 100;
-        this.testUrl = 'http://httpbin.org/ip';
+        this.maxProxiesToKeep = 50;
+        this.testUrls = ['https://smsnator.online', 'https://poe.com', 'https://yopmail.com'];
         this.timeout = 3000;
     }
 
@@ -19,7 +19,7 @@ class ProxyManager {
                 .slice(0, this.maxProxiesToFetch)
                 .map(line => {
                     const [ip, port] = line.split(':');
-                    return { ip, port: parseInt(port), protocol: 'http' };
+                    return { ip, port: parseInt(port) };
                 });
         } catch (error) {
             Logger.error(`Error fetching proxies: ${error.message}`);
@@ -30,14 +30,16 @@ class ProxyManager {
     async testProxy(proxy) {
         const startTime = Date.now();
         try {
-            await axios.get(this.testUrl, {
-                proxy: {
-                    host: proxy.ip,
-                    port: proxy.port,
-                    protocol: proxy.protocol
-                },
-                timeout: this.timeout
-            });
+            for (const url of this.testUrls) {
+                await axios.get(url, {
+                    proxy: {
+                        host: proxy.ip,
+                        port: proxy.port,
+                        protocol: 'http'
+                    },
+                    timeout: this.timeout
+                });
+            }
             const responseTime = Date.now() - startTime;
             return { ...proxy, responseTime };
         } catch (error) {
@@ -67,6 +69,7 @@ class ProxyManager {
             Logger.info('Initializing proxy manager...');
             this.proxyList = await this.getFastestProxies();
             Logger.info('Proxy manager initialized successfully');
+
         } catch (error) {
             Logger.error(`Failed to initialize proxy manager: ${error.message}`);
             throw error;

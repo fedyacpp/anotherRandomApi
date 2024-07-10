@@ -93,30 +93,68 @@ class AccountGenerator {
     async initializeBrowser() {
         try {
             const { connect } = await import('puppeteer-real-browser');
-            const response = await connect({
-                headless: false,
-                turnstile: true,
-                args: this.currentProxy ? [`--proxy-server=${this.currentProxy.ip}:${this.currentProxy.port}`] : []
-            });
+            const maxAttempts = 3;
+            let attempt = 0;
             
-            const { page, browser, setTarget } = response;
-            this.browser = browser;
-            this.setTarget = setTarget;
-            this.yopmailPage = page;
+            while (attempt < maxAttempts) {
+                try {
+                    const response = await connect({
+                        headless: false,
+                        turnstile: true,
+                        args: this.currentProxy ? [
+                            `--proxy-server=${this.currentProxy.ip}:${this.currentProxy.port}`,
+                            '--ignore-certificate-errors',
+                            '--ignore-certificate-errors-spki-list'
+                        ] : []
+                    });
+                    
+                    const { page, browser, setTarget } = response;
+                    this.browser = browser;
+                    this.setTarget = setTarget;
+                    this.yopmailPage = page;
 
-            this.setTarget({ status: false });
-            this.poePage = await this.browser.newPage();
-            this.smsnatorPage = await this.browser.newPage();
-            this.setTarget({ status: true });
+                    this.setTarget({ status: false });
+                    this.poePage = await this.browser.newPage();
+                    this.smsnatorPage = await this.browser.newPage();
+                    this.setTarget({ status: true });
 
-            if (this.currentProxy) {
-                await this.setProxyAuth(this.poePage);
+                    if (this.currentProxy) {
+                        await this.setProxyAuth(this.poePage);
+                        await this.setProxyAuth(this.smsnatorPage);
+                        await this.setProxyAuth(this.yopmailPage);
+                    }
+
+                    await this.testConnection();
+
+                    await this.initializeSession();
+                    return;
+                } catch (error) {
+                    Logger.error(`Error initializing browser (Attempt ${attempt + 1}): ${error.message}`);
+                    attempt++;
+                    if (attempt < maxAttempts) {
+                        Logger.info('Changing proxy and retrying...');
+                        await this.changeProxy();
+                    }
+                }
             }
-
-            await this.initializeSession();
+            throw new Error('Failed to initialize browser after maximum attempts');
         } catch (error) {
-            Logger.error(`Error initializing browser: ${error.message}`);
+            Logger.error(`Critical error initializing browser: ${error.message}`);
             throw error;
+        }
+    }
+
+    
+    async testConnection() {
+        const testUrls = ['https://smsnator.online', 'https://poe.com', 'https://yopmail.com'];
+        for (const url of testUrls) {
+            try {
+                await this.poePage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                Logger.info(`Successfully connected to ${url}`);
+            } catch (error) {
+                Logger.error(`Failed to connect to ${url}: ${error.message}`);
+                throw error;
+            }
         }
     }
 
@@ -266,7 +304,7 @@ class AccountGenerator {
     }
     
     async setProxyAuth(page) {
-        if (this.currentProxy.username && this.currentProxy.password) {
+        if (this.currentProxy && this.currentProxy.username && this.currentProxy.password) {
             await page.authenticate({
                 username: this.currentProxy.username,
                 password: this.currentProxy.password
@@ -284,6 +322,7 @@ class AccountGenerator {
             Logger.info(`Changed proxy to: ${this.currentProxy.ip}:${this.currentProxy.port}`);
         } else {
             Logger.warn('No proxies available');
+            this.currentProxy = null;
         }
     }
 
@@ -373,28 +412,52 @@ class AccountGenerator {
             } catch (error) {
                 Logger.error(`Error during account generation (Attempt ${attempt}): ${error.message}`);
     
-                const errorText = await this.poePage.evaluate(() => document.querySelector('.InfoText_error__jaXia')?.innerText);
-    
-                if (await this.checkForPhoneError(this.poePage, 'Verification with this phone number has been temporarily blocked. Please use email instead.')) {
-                    Logger.info('Phone number temporarily blocked. Changing phone number...');
-                    await this.changePhoneNumber();
-                } else if (await this.checkForError(this.poePage, 'Too many attempts. Please wait and try again later.')) {
-                    Logger.info('Too many attempts. Changing proxy and restarting browser...');
+                if (await this.checkForGeneralError()) {
+                    Logger.info('General error detected. Changing proxy and restarting browser...');
                     await this.changeProxy();
                     await this.closeBrowser();
                     await this.initializeBrowser();
-                } else if (error.message.includes('Proxy error') || await this.checkForError(this.poePage) || await this.checkForPhoneError(this.poePage)) {
-                    Logger.info('Changing proxy and restarting browser...');
-                    await this.changeProxy();
-                    await this.closeBrowser();
-                    await this.initializeBrowser();
+                } else if (await this.checkForPhoneError()) {
+                    Logger.info('Phone number error detected. Changing phone number...');
+                    phoneNumber = await this.getPhoneNumber();
+                    await this.enterPhoneNumber(phoneNumber);
                 } else if (attempt === maxAttempts) {
                     Logger.error('Max attempts reached. Failing account generation.');
                     return { success: false, email: null, phoneNumber: null, error: error.message };
                 }
             }
         }
-    }  
+    }
+
+    async checkForGeneralError() {
+        return this.checkForErrorWithText(
+            'Too many attempts. Please wait and try again later.'
+        );
+    }
+    
+    async checkForPhoneError() {
+        return this.checkForErrorWithText(
+            'Verification with this phone number has been temporarily blocked. Please use email instead.'
+        );
+    }
+    
+    async checkForErrorWithText(errorText) {
+        try {
+            const errorTextContent = await this.poePage.evaluate((text) => {
+                const elements = document.querySelectorAll('*');
+                for (const element of elements) {
+                    if (element.textContent.includes(text)) {
+                        return element.textContent;
+                    }
+                }
+                return null;
+            }, errorText);
+    
+            return !!errorTextContent;
+        } catch (error) {
+            return false;
+        }
+    }
     
     async createEmail() {
         Logger.info("Creating email...");
@@ -431,27 +494,36 @@ class AccountGenerator {
             throw new Error('Email confirmation error');
         }
     }
-    
-    async enterPhoneNumber() {
+
+    async enterPhoneNumber(phoneNumber = null) {
         await this.poePage.bringToFront();
         Logger.info("Entering phone number...");
         const maxPhoneAttempts = 5;
         for (let i = 0; i < maxPhoneAttempts; i++) {
-            const phoneNumber = await this.getPhoneNumber();
-            await this.poePage.type('input[placeholder="Phone number"]', phoneNumber);
-            await this.safeClick(this.poePage, '#__next > div > main > div > div > button');
-            await this.poePage.waitForTimeout(3000);
-            if (!(await this.checkForError(this.poePage)) && !(await this.checkForPhoneError(this.poePage))) {
-                return phoneNumber;
+            if (!phoneNumber) {
+                phoneNumber = await this.getPhoneNumber();
             }
-            Logger.warn("Phone number not accepted. Trying another one...");
             await this.poePage.evaluate(() => {
                 document.querySelector('input[placeholder="Phone number"]').value = '';
             });
+            await this.poePage.type('input[placeholder="Phone number"]', phoneNumber);
+            await this.safeClick(this.poePage, '#__next > div > main > div > div > button');
+            await this.poePage.waitForTimeout(3000);
+            
+            const hasGeneralError = await this.checkForGeneralError();
+            const hasPhoneError = await this.checkForPhoneError();
+            
+            if (!hasGeneralError && !hasPhoneError) {
+                return phoneNumber;
+            }
+            if (hasGeneralError) {
+                throw new Error('General error detected');
+            }
+            Logger.warn("Phone number not accepted. Trying another one...");
+            phoneNumber = null;
         }
         throw new Error('Failed to find a valid phone number after maximum attempts');
     }
-    
     
     async confirmPhoneNumber(phoneNumber) {
         Logger.info("Confirming phone number...");
