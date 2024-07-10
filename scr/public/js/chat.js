@@ -7,6 +7,7 @@ class AITerminal {
         this.commandHistory = [];
         this.chatHistory = [];
         this.historyIndex = -1;
+        this.useStreaming = true;
         
         this.fileSystem = {
             '/': {
@@ -32,7 +33,7 @@ class AITerminal {
         };
         this.currentDirectory = ['/','home','user'];
         
-        this.aiModel = 'gpt-3.5-turbo';
+        this.aiModel = 'gpt-3.5-turbo-0125';
         this.aiTemperature = 0.7;
         this.isAIResponding = false;
         this.inputLine = document.getElementById('input-line');
@@ -178,7 +179,7 @@ class AITerminal {
     }
 
     isCommand(input) {
-        const commands = ['clear', 'help', 'exit', 'ls', 'cd', 'cat', 'model', 'temp', 'echo', 'date', 'whoami', 'pwd', 'tree'];
+        const commands = ['clear', 'help', 'exit', 'ls', 'cd', 'cat', 'model', 'temp', 'echo', 'date', 'whoami', 'pwd', 'tree', 'mode'];
         return commands.some(cmd => input.toLowerCase().startsWith(cmd));
     }
 
@@ -186,58 +187,77 @@ class AITerminal {
         const [cmd, ...args] = command.toLowerCase().split(' ');
         switch (cmd) {
             case 'clear':
+                this.scrollToBottom();
                 this.clearTerminal();
                 this.scrollToBottom();
                 break;
             case 'help':
+                this.scrollToBottom();
                 this.showHelp();
                 this.scrollToBottom();
                 break;
             case 'exit':
+                this.scrollToBottom();
                 this.exitTerminal();
                 this.scrollToBottom();
                 break;
             case 'ls':
+                this.scrollToBottom();
                 this.listDirectory(args[0]);
                 this.scrollToBottom();
                 break;
             case 'cd':
+                this.scrollToBottom();
                 this.changeDirectory(args[0]);
                 this.scrollToBottom();
                 break;
             case 'cat':
+                this.scrollToBottom();
                 this.catFile(args[0]);
                 this.scrollToBottom();
                 break;
             case 'model':
+                this.scrollToBottom();
                 this.setAIModel(args[0]);
                 this.scrollToBottom();
                 break;
             case 'temp':
+                this.scrollToBottom();
                 this.setAITemperature(args[0]);
                 this.scrollToBottom();
                 break;
             case 'echo':
+                this.scrollToBottom();
                 this.echo(args.join(' '));
                 this.scrollToBottom();
                 break;
             case 'date':
+                this.scrollToBottom();
                 this.showDate();
                 this.scrollToBottom();
                 break;
             case 'whoami':
+                this.scrollToBottom();
                 this.showWhoami();
                 this.scrollToBottom();
                 break;
             case 'pwd':
+                this.scrollToBottom();
                 this.showPwd();
                 this.scrollToBottom();  
                 break;
             case 'tree':
+                this.scrollToBottom();
                 this.showTree(args[0]);
                 this.scrollToBottom();
                 break;
+            case 'mode':
+                this.scrollToBottom();
+                this.toggleResponseMode();
+                this.scrollToBottom();
+                break;
             default:
+                this.scrollToBottom();
                 this.printSystemMessage(`Unknown command: ${cmd}`);
                 this.scrollToBottom();
         }
@@ -253,6 +273,7 @@ class AITerminal {
             'cd <dir> - Change directory',
             'cat <file> - Display file contents',
             'model <name> - Set AI model',
+            'mode - Toggle between streaming and non-streaming response modes',
             'temp <value> - Set AI temperature (0-1)',
             'echo <message> - Display a message',
             'date - Show current date and time',
@@ -263,6 +284,11 @@ class AITerminal {
         ];
         helpMessages.forEach(msg => this.printSystemMessage(msg));
     }
+
+    toggleResponseMode() {
+        this.useStreaming = !this.useStreaming;
+        this.printSystemMessage(`Response mode set to: ${this.useStreaming ? 'streaming' : 'non-streaming'}`);
+    }    
 
     listDirectory(dir) {
         const targetDir = dir ? this.getDirectoryFromPath(dir) : this.getCurrentDirectory();
@@ -454,7 +480,7 @@ class AITerminal {
         this.terminalInput.disabled = true;
         this.chatHistory.push({ role: 'user', content: message });
         this.printSystemMessage('AI is thinking...');
-
+    
         try {
             const response = await fetch('/v1/chat/completions', {
                 method: 'POST',
@@ -463,56 +489,20 @@ class AITerminal {
                     model: this.aiModel,
                     messages: this.chatHistory,
                     temperature: this.aiTemperature,
-                    stream: true,
+                    stream: this.useStreaming,
                 }),
             });
-
+    
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let aiResponse = '';
-            let aiOutputElement = null;
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const content = line.slice(5).trim();
-                        if (content === '[DONE]') {
-                            console.log('Stream completed');
-                            continue;
-                        }
-                        try {
-                            const data = JSON.parse(content);
-                            if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-                                const newContent = data.choices[0].delta.content;
-                                aiResponse += newContent;
-                                if (!aiOutputElement) {
-                                    aiOutputElement = document.createElement('div');
-                                    aiOutputElement.classList.add('ai-output');
-                                    this.terminalOutput.appendChild(aiOutputElement);
-                                }
-                                aiOutputElement.textContent += newContent;
-                                this.scrollToBottom();
-                            }
-                        } catch (error) {
-                            console.error('Error parsing JSON:', error, 'Content:', content);
-                            this.printSystemMessage(`Error parsing AI response: ${error.message}`);
-                        }
-                    }
-                }
+    
+            if (this.useStreaming) {
+                await this.handleStreamingResponse(response);
+            } else {
+                await this.handleNonStreamingResponse(response);
             }
-
-            this.chatHistory.push({ role: 'assistant', content: aiResponse });
-
+    
         } catch (error) {
             console.error('Error:', error);
             this.printSystemMessage(`Error communicating with AI: ${error.message}`);
@@ -526,8 +516,64 @@ class AITerminal {
             this.terminalInput.disabled = false;
             this.focusInput();
         }
+    }  
+
+    async handleStreamingResponse(response) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let aiResponse = '';
+        let aiOutputElement = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const content = line.slice(5).trim();
+                    if (content === '[DONE]') {
+                        console.log('Stream completed');
+                        continue;
+                    }
+                    try {
+                        const data = JSON.parse(content);
+                        if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                            const newContent = data.choices[0].delta.content;
+                            aiResponse += newContent;
+                            if (!aiOutputElement) {
+                                aiOutputElement = document.createElement('div');
+                                aiOutputElement.classList.add('ai-output');
+                                this.terminalOutput.appendChild(aiOutputElement);
+                            }
+                            aiOutputElement.textContent += newContent;
+                            this.scrollToBottom();
+                        }
+                    } catch (error) {
+                        console.error('Error parsing JSON:', error, 'Content:', content);
+                        this.printSystemMessage(`Error parsing AI response: ${error.message}`);
+                    }
+                }
+            }
+        }
+
+        this.chatHistory.push({ role: 'assistant', content: aiResponse });
+    }
+
+    async handleNonStreamingResponse(response) {
+        const data = await response.json();
+        if (data.choices && data.choices[0].message) {
+            const aiResponse = data.choices[0].message.content;
+            this.printAIOutput(aiResponse);
+            this.chatHistory.push({ role: 'assistant', content: aiResponse });
+        } else {
+            throw new Error('Unexpected response format');
+        }
     }
 }
+
 
 const terminal = new AITerminal();
 

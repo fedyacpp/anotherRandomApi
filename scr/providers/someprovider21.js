@@ -64,8 +64,6 @@ class Provider21 {
         messages: payloadMessages
       };
 
-      Logger.info(`Provider21: Sending stream request to ${url} with payload: ${JSON.stringify(payload)}`);
-
       const response = await axios.post(url, payload, {
         headers: { ...this.getChatHeaders(this.vqd), 'x-vqd-4': this.vqd },
         responseType: 'stream'
@@ -95,7 +93,6 @@ class Provider21 {
                 };
               }
             } catch (parseError) {
-              Logger.error('Provider21: Error parsing SSE data:', parseError);
             }
           }
         }
@@ -124,13 +121,13 @@ class Provider21 {
       if (!this.vqd) {
         await this.getInitialVqd();
       }
-
+  
       let payloadMessages;
       if (!this.historyMessage) {
         const historyContent = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
         this.historyMessage = {
           role: 'user',
-          content: `${historyContent}`
+          content: `Current conversation history: ${historyContent}`
         };
         payloadMessages = [this.historyMessage];
       } else {
@@ -138,37 +135,51 @@ class Provider21 {
         this.newMessages.push(newMessage);
         payloadMessages = [this.historyMessage, ...this.newMessages];
       }
-
+  
       const url = `${this.baseUrl}/chat`;
       const payload = {
         model: this.modelInfo.modelId,
         messages: payloadMessages
       };
-
-      Logger.info(`Provider21: Sending request to ${url} with payload: ${JSON.stringify(payload)}`);
-
+  
+  
       const response = await axios.post(url, payload, {
-        headers: { ...this.getChatHeaders(this.vqd), 'x-vqd-4': this.vqd }
+        headers: { ...this.getChatHeaders(this.vqd), 'x-vqd-4': this.vqd },
+        responseType: 'text'
       });
-
+  
       if (response.headers['x-vqd-4']) {
         this.vqd = response.headers['x-vqd-4'];
-        Logger.info(`Provider21: Updated vqd from response: ${this.vqd}`);
       }
-
+  
       const data = response.data;
-      if (data && data.message) {
+  
+      const lines = data.split('\n');
+      let fullMessage = '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const jsonData = JSON.parse(line.slice(6));
+            if (jsonData.message) {
+              fullMessage += jsonData.message;
+            }
+          } catch (error) {
+          }
+        }
+      }
+  
+      if (fullMessage) {
         this.newMessages.push({
           role: 'assistant',
-          content: data.message
+          content: fullMessage
         });
-
+  
         return {
-          content: data.message,
+          content: fullMessage,
           usage: {
-            prompt_tokens: data.usage?.prompt_tokens ?? -1,
-            completion_tokens: data.usage?.completion_tokens ?? -1,
-            total_tokens: data.usage?.total_tokens ?? -1
+            prompt_tokens: -1,
+            completion_tokens: -1,
+            total_tokens: -1
           }
         };
       } else {
