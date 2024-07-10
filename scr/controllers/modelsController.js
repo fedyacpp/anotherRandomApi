@@ -2,7 +2,7 @@ const NodeCache = require('node-cache');
 const ModelsService = require('../services/modelsService');
 const Logger = require('../helpers/logger');
 
-const cache = new NodeCache({ stdTTL: 3600 }); // 1 hour
+const cache = new NodeCache({ stdTTL: 900 }); // 15 minutes
 
 exports.getModels = async (req, res, next) => {
   try {

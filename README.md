@@ -5,7 +5,11 @@ Currently five providers.
 ## Setup
 
 1. Install dependencies: `npm install`
-2. Start the server: `node scr\main\server.js`
+2. Clone cf scraper: `git clone https://github.com/zfcsoftware/cf-clearance-scraper`
+3. Open it: `cd cf-clearance-scraper`
+4. Install it's dependencies: `npm install`
+5. Go back to the project directory: `cd ..`
+6. Start the server: `node scr\main\server.js`
 
 ## API Endpoints
 

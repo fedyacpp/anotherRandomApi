@@ -1,6 +1,9 @@
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const { spawn } = require('child_process');
+
 const config = require('../config');
 const routes = require('../routes');
 const chatRoutes = require('../routes/chat');
@@ -8,12 +11,12 @@ const errorMiddleware = require('../middleware/errorMiddleware');
 const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const timeoutMiddleware = require('../middleware/timeoutMiddleware');
 const Logger = require('../helpers/logger');
-const path = require('path');
 const proxyManager = require('../helpers/proxyManager');
 
 class Server {
     constructor() {
         this.app = express();
+        this.cfClearanceScraperProcess = null;
         this.configureMiddleware();
         this.configureRoutes();
         this.configureErrorHandling();
@@ -73,15 +76,18 @@ class Server {
             this.server = this.app.listen(config.port, () => {
                 Logger.success(`Server running on port ${config.port} in ${config.environment} mode`);
             });
-
+    
             this.setupGracefulShutdown();
-
-            this.initializeProxyManager();
+    
+            await this.initializeProxyManager();
+            Logger.info('Starting CF Clearance Scraper...');
+            await this.startCFClearanceScraper();
+            Logger.success('Server and CF Clearance Scraper are fully operational');
         } catch (error) {
             Logger.error('Failed to start server:', error);
             process.exit(1);
         }
-    }
+    }    
 
     async initializeProxyManager() {
         try {
@@ -92,11 +98,67 @@ class Server {
         }
     }
 
+    async startCFClearanceScraper() {
+        return new Promise((resolve, reject) => {
+            try {
+                const scraperPath = path.resolve(__dirname, '../../cf-clearance-scraper');
+                Logger.info(`Starting CF Clearance Scraper from ${scraperPath}`);
+    
+                this.cfClearanceScraperProcess = spawn('npm', ['run', 'start'], {
+                    cwd: scraperPath,
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    shell: true
+                });
+    
+                Logger.info('CF Clearance Scraper process spawned');
+    
+                let isResolved = false;
+    
+                this.cfClearanceScraperProcess.stdout.on('data', (data) => {
+                    const output = data.toString();
+                    Logger.info(`CF Clearance Scraper stdout: ${output}`);
+                    if (output.includes('Server running on port') && !isResolved) {
+                        isResolved = true;
+                        resolve();
+                    }
+                });
+    
+                this.cfClearanceScraperProcess.stderr.on('data', (data) => {
+                    const errorOutput = data.toString();
+                    Logger.error(`CF Clearance Scraper stderr: ${errorOutput}`);
+                });
+    
+                this.cfClearanceScraperProcess.on('error', (error) => {
+                    Logger.error('Failed to start CF Clearance Scraper process:', error);
+                    if (!isResolved) {
+                        isResolved = true;
+                        reject(error);
+                    }
+                });
+    
+                this.cfClearanceScraperProcess.on('close', (code) => {
+                    Logger.info(`CF Clearance Scraper process exited with code ${code}`);
+                    if (code !== 0 && !isResolved) {
+                        isResolved = true;
+                        reject(new Error(`CF Clearance Scraper exited with code ${code}`));
+                    }
+                });
+    
+            } catch (error) {
+                Logger.error('Error in startCFClearanceScraper:', error);
+                reject(error);
+            }
+        });
+    }
+
     setupGracefulShutdown() {
         const gracefulShutdown = () => {
             Logger.info('Received kill signal, shutting down gracefully');
             if (proxyManager.isInitialized()) {
                 proxyManager.stopPeriodicUpdate();
+            }
+            if (this.cfClearanceScraperProcess) {
+                this.cfClearanceScraperProcess.kill();
             }
             this.server.close(() => {
                 Logger.info('Closed out remaining connections');
