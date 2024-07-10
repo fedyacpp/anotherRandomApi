@@ -1,6 +1,6 @@
 # Chat Completion API
 
-Currently four providers.
+Currently five providers.
 
 ## Setup
 
