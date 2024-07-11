@@ -7,12 +7,12 @@ class provider22 {
     this.modelInfo = {
       modelId: "claude-3-haiku",
       name: "claude-3-haiku",
-      description: "Latest snapshot of claude-3-haiku",
-      context_window: "200000",
+      description: "A streamlined AI model designed for quick responses and efficient processing of shorter queries",
+      context_window: 200000,
       author: "Anthropic",
       unfiltered: true,
       reverseStatus: "Testing",
-      devNotes: ""
+      devNotes: "IP limiting"
     };
     this.vqd = null;
     this.historyContent = null;

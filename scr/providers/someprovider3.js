@@ -1,7 +1,7 @@
 const axios = require('axios');
 const uuid = require('uuid');
+const https = require('https');
 const ProviderInterface = require('./ProviderInterface');
-const { SocksProxyAgent } = require('socks-proxy-agent');
 const Logger = require('../helpers/logger');
 const proxyManager = require('../helpers/proxyManager');
 
@@ -9,176 +9,215 @@ class Provider3 extends ProviderInterface {
     constructor() {
         super();
         this.baseUrl = "https://liaobots.work";
-        this.authCode = "";
-        this.gkp2Cookie = "";
         this.modelInfo = {
             modelId: "claude-3.5-sonnet",
             name: "claude-3.5-sonnet",
-            description: "The most intelligent model in the world i guess",
+            description: "A cutting-edge AI model renowned for its exceptional reasoning abilities and vast knowledge base",
             context_window: 200000,
             author: "Anthropic",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP limiting"
-          };
-          this.ModelInfo = {
-             "id": "claude-3-5-sonnet-20240620",
-             "name": "Claude-3.5-Sonnet",
-             "maxLength": 800000,
-             "tokenLimit": 200000,
-             "model": "Claude",
-             "provider": "Anthropic",
-             "context": "200K"
-          };
-        this.balance = 0;
-        this.lastBalance = 0;
-        this.currentProxy = null;
+        };
+        this.ModelInfo = {
+            "id": "claude-3-5-sonnet-20240620",
+            "name": "Claude-3.5-Sonnet",
+            "maxLength": 800000,
+            "tokenLimit": 200000,
+            "model": "Claude",
+            "provider": "Anthropic",
+            "context": "200K"
+        };
+        this.authCode = null;
+        this.cookieJar = null;
+        this.maxAttempts = 3;
     }
 
     getHeaders() {
-        return {
+        const headers = {
             'authority': 'liaobots.com',
             'content-type': 'application/json',
             'origin': this.baseUrl,
             'referer': `${this.baseUrl}/`,
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
-            'x-auth-code': this.authCode,
-            'Cookie': this.gkp2Cookie
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Unique/96.7.5796.97',
         };
+        if (this.authCode) {
+            headers['x-auth-code'] = this.authCode;
+        }
+        return headers;
     }
 
     getAxiosConfig() {
-        const config = { headers: this.getHeaders() };
-        if (this.currentProxy) {
-            config.httpsAgent = new SocksProxyAgent(this.currentProxy.proxy);
-        }
-        return config;
+        return {
+            headers: this.getHeaders(),
+            httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+            timeout: 60000,
+            validateStatus: status => status >= 200 && status < 400
+        };
     }
 
     async initialize() {
         if (!proxyManager.isInitialized()) {
             await proxyManager.initialize();
         }
-        await this.switchProxy();
-        await this.login();
-        await this.getUserInfo();
-        await this.checkBalance();
+        await this.refreshAuthCode();
     }
 
-    async switchProxy() {
-        this.currentProxy = proxyManager.getProxy();
-        Logger.info(`Switched to proxy: ${this.currentProxy.proxy}`);
-        await this.login();
-        await this.getUserInfo();
-    }
-
-    async login() {
+    async refreshAuthCode() {
         try {
             Logger.info('Attempting to login...');
-            const response = await axios.post(`${this.baseUrl}/recaptcha/api/login`, 
+            const loginResponse = await axios.post(
+                `${this.baseUrl}/recaptcha/api/login`,
                 { token: "abcdefghijklmnopqrst" },
-                { headers: { 'Content-Type': 'application/json' } }
-            );
-            
-            if (response.headers['set-cookie']) {
-                const cookieHeader = response.headers['set-cookie'].find(cookie => cookie.startsWith('gkp2='));
-                if (cookieHeader) {
-                    this.gkp2Cookie = cookieHeader.split(';')[0];
-                    Logger.info('Login successful, gkp2 cookie obtained');
-                }
-            }
-            if (!this.gkp2Cookie) {
-                throw new Error('Failed to obtain gkp2 cookie');
-            }
-        } catch (error) {
-            Logger.error(`Login failed: ${error.message}`);
-            throw error;
-        }
-    }
-
-    async getUserInfo() {
-        try {
-            Logger.info('Getting user info...');
-            const response = await axios.post(`${this.baseUrl}/api/user`,
-                { authcode: this.authCode },
                 this.getAxiosConfig()
             );
-            this.authCode = response.data.authCode;
-            this.lastBalance = this.balance;
-            this.balance = response.data.balance;
-            Logger.info(`User info retrieved. Auth code: ${this.authCode}, Balance: ${this.balance}`);
+            this.cookieJar = loginResponse.headers['set-cookie'];
+            Logger.info('Login successful, cookies obtained');
+
+            const userInfoResponse = await axios.post(
+                `${this.baseUrl}/api/user`,
+                { authcode: "" },
+                {
+                    ...this.getAxiosConfig(),
+                    headers: {
+                        ...this.getHeaders(),
+                        Cookie: this.cookieJar
+                    }
+                }
+            );
+            this.authCode = userInfoResponse.data.authCode;
+            Logger.info(`Auth code obtained: ${this.authCode}, Balance: ${userInfoResponse.data.balance}`);
         } catch (error) {
-            Logger.error(`Failed to get user info: ${error.message}`);
+            Logger.error(`Failed to refresh auth code: ${error.message}`);
             throw error;
         }
     }
 
-    async checkBalance() {
-        if (this.balance === this.lastBalance) {
-            Logger.info('Balance unchanged, switching proxy...');
-            await this.switchProxy();
-        } else if (this.balance < 0.03) {
-            Logger.info('Balance too low, generating new auth code...');
-            await this.generateNewAuthCode();
+    async makeRequest(endpoint, data, stream = false) {
+        const config = {
+            ...this.getAxiosConfig(),
+            headers: {
+                ...this.getHeaders(),
+                Cookie: this.cookieJar
+            }
+        };
+        if (stream) {
+            config.responseType = 'stream';
         }
-    }
 
-    async generateNewAuthCode() {
         try {
-            await this.login();
-            await this.getUserInfo();
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, data, config);
+            return response;
         } catch (error) {
-            Logger.error(`Failed to generate new auth code: ${error.message}`);
+            if (error.response?.status === 402 || error.message.includes('Invalid session')) {
+                Logger.info(`Received error: ${error.message}. Refreshing auth code...`);
+                await this.refreshAuthCode();
+                return this.makeRequest(endpoint, data, stream);
+            }
             throw error;
+        }
+    }
+
+    async generateCompletion(messages, temperature, max_tokens) {
+        for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
+            try {
+                const response = await this.makeRequest('/api/chat', {
+                    conversationId: uuid.v4(),
+                    model: this.ModelInfo,
+                    messages,
+                    key: "",
+                    prompt: "You are a helpful assistant.",
+                    temperature,
+                    max_tokens
+                }, true);
+
+                let fullContent = '';
+                for await (const chunk of response.data) {
+                    const chunkStr = chunk.toString();
+                    if (chunkStr.includes('<html')) {
+                        throw new Error('Invalid session');
+                    }
+                    fullContent += chunkStr;
+                }
+    
+                fullContent = fullContent.replace(/\s+/g, ' ').trim();
+    
+                return { content: fullContent };
+            } catch (error) {
+                Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
+                if (error.message.includes('Invalid session')) {
+                    await this.refreshAuthCode();
+                } else if (attempt === this.maxAttempts - 1) {
+                    throw error;
+                }
+            }
         }
     }
 
     async *generateCompletionStream(messages, temperature, max_tokens) {
-        try {
-            await this.initialize();
-
-            Logger.info('Starting chat stream...');
-            const response = await axios.post(`${this.baseUrl}/api/chat`,
-                {
+        for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
+            try {
+                const response = await this.makeRequest('/api/chat', {
                     conversationId: uuid.v4(),
                     model: this.ModelInfo,
-                    messages: messages,
+                    messages,
                     key: "",
-                    prompt: "You are a helpful assistant."
-                },
-                { 
-                    ...this.getAxiosConfig(),
-                    responseType: 'stream'
+                    prompt: "You are a helpful assistant.",
+                    temperature,
+                    max_tokens
+                }, true);
+    
+                let buffer = '';
+                for await (const chunk of response.data) {
+                    const chunkStr = chunk.toString();
+                    if (chunkStr.includes('<html')) {
+                        throw new Error('Invalid session');
+                    }
+                    buffer += chunkStr;
+                    
+                    while (buffer.includes(' ')) {
+                        const index = buffer.indexOf(' ');
+                        const part = buffer.slice(0, index).trim();
+                        if (part) {
+                            yield {
+                                choices: [{
+                                    delta: { content: part + ' ' },
+                                    index: 0,
+                                    finish_reason: null
+                                }]
+                            };
+                        }
+                        buffer = buffer.slice(index + 1);
+                    }
                 }
-            );
-
-            for await (const chunk of response.data) {
-                const chunkStr = chunk.toString();
-                if (chunkStr) {
+    
+                if (buffer.trim()) {
                     yield {
                         choices: [{
-                            delta: { content: chunkStr },
+                            delta: { content: buffer.trim() },
                             index: 0,
                             finish_reason: null
                         }]
                     };
                 }
+    
+                yield {
+                    choices: [{
+                        delta: {},
+                        index: 0,
+                        finish_reason: "stop"
+                    }]
+                };
+    
+                return;
+            } catch (error) {
+                Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
+                if (error.message.includes('Invalid session')) {
+                    await this.refreshAuthCode();
+                } else if (attempt === this.maxAttempts - 1) {
+                    throw error;
+                }
             }
-
-            yield {
-                choices: [{
-                    delta: {},
-                    index: 0,
-                    finish_reason: "stop"
-                }]
-            };
-        } catch (error) {
-            Logger.error(`Error in completion stream: ${error.message}`);
-            if (error.response) {
-                Logger.error(`Response status: ${error.response.status}`);
-                Logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
-            }
-            throw error;
         }
     }
 }

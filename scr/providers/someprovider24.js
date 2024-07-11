@@ -5,14 +5,14 @@ class provider24 {
   constructor() {
     this.baseUrl = 'https://duckduckgo.com/duckchat/v1';
     this.modelInfo = {
-        modelId: "mixtral-8x7b-instruct",
-        name: "mixtral-8x7b-instruct",
-        description: "Mistral's MOE model",
-        context_window: 32000,
-        author: "Mistral AI",
-        unfiltered: true,
-        reverseStatus: "Testing",
-        devNotes: ""
+      modelId: "mixtral-8x7b-instruct",
+      name: "mixtral-8x7b-instruct",
+      description: "A Mixture of Experts model offering a blend of specialized knowledge across various domains",
+      context_window: 32768,
+      author: "Mistral AI",
+      unfiltered: true,
+      reverseStatus: "Testing",
+      devNotes: ""
     };
     this.vqd = null;
     this.historyContent = null;

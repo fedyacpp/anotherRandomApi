@@ -14,8 +14,8 @@ class Provider19 extends ProviderInterface {
         this.modelInfo = {
             modelId: "llama-3-sonar-large-32k-online",
             name: "llama-3-sonar-large-32k-online",
-            description: "Perplexity's modified llama-3 model model with internet access",
-            context_window: 32000,
+            description: "Perplexity's LLaMA 3 variant with real-time information access, enhancing its knowledge base",
+            context_window: 32768,
             author: "Perplexity AI",
             unfiltered: true,
             reverseStatus: "Testing",

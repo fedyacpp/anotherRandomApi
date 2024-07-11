@@ -10,10 +10,10 @@ class Provider1 extends ProviderInterface {
       url: 'https://pi.ai'
     });
     this.modelInfo = {
-      modelId: "pi",
+      modelId: "inflection-2.5",
       name: "inflection-2.5",
-      description: "Very friendly model by Inflection, using on pi.ai",
-      context_window: "???",
+      description: "A highly approachable AI assistant developed by Inflection, known for its friendly demeanor",
+      context_window: "Unknown",
       author: "Inflection",
       unfiltered: false,
       reverseStatus: "Testing",

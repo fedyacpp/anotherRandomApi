@@ -9,6 +9,7 @@ class ProxyManager {
         this.maxProxiesToKeep = 50;
         this.testUrl = 'http://httpbin.org/ip';
         this.timeout = 3000;
+        this.currentProxyIndex = 0;
     }
 
     async fetchProxies() {
@@ -19,7 +20,7 @@ class ProxyManager {
                 .slice(0, this.maxProxiesToFetch)
                 .map(line => {
                     const [ip, port] = line.split(':');
-                    return { ip, port: parseInt(port) };
+                    return { ip, port: parseInt(port), protocol: 'http' };
                 });
         } catch (error) {
             Logger.error(`Error fetching proxies: ${error.message}`);
@@ -39,13 +40,28 @@ class ProxyManager {
                 timeout: this.timeout
             });
             const responseTime = Date.now() - startTime;
-            return { ...proxy, responseTime };
+            return { ...proxy, responseTime, score: 1 };
         } catch (error) {
             return null;
         }
     }
 
     async getProxy() {
+        if (this.proxyList.length === 0 || this.currentProxyIndex >= this.proxyList.length) {
+            await this.refreshProxyList();
+        }
+
+        if (this.proxyList.length === 0) {
+            Logger.warn('No working proxies available');
+            return null;
+        }
+
+        const proxy = this.proxyList[this.currentProxyIndex];
+        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.proxyList.length;
+        return proxy;
+    }
+
+    async refreshProxyList() {
         const rawProxies = await this.fetchProxies();
         Logger.info(`Fetched ${rawProxies.length} proxies. Testing...`);
 
@@ -53,29 +69,39 @@ class ProxyManager {
             rawProxies.map(proxy => this.testProxy(proxy))
         );
 
-        const workingProxies = testedProxies
+        this.proxyList = testedProxies
             .filter(proxy => proxy !== null)
             .sort((a, b) => a.responseTime - b.responseTime)
             .slice(0, this.maxProxiesToKeep);
 
-        Logger.info(`Found ${workingProxies.length} working proxies`);
-        return workingProxies;
+        this.currentProxyIndex = 0;
+        Logger.info(`Found ${this.proxyList.length} working proxies`);
     }
 
     async initialize() {
         try {
             Logger.info('Initializing proxy manager...');
-            this.proxyList = await this.getProxy();
+            await this.refreshProxyList();
             Logger.info('Proxy manager initialized successfully');
-
         } catch (error) {
             Logger.error(`Failed to initialize proxy manager: ${error.message}`);
             throw error;
         }
     }
 
-    getProxies() {
-        return this.proxyList;
+    updateProxyScore(proxy, success) {
+        const proxyIndex = this.proxyList.findIndex(p => p.ip === proxy.host && p.port === proxy.port);
+        if (proxyIndex !== -1) {
+            if (success) {
+                this.proxyList[proxyIndex].score += 1;
+            } else {
+                this.proxyList[proxyIndex].score -= 1;
+                if (this.proxyList[proxyIndex].score <= 0) {
+                    this.proxyList.splice(proxyIndex, 1);
+                    Logger.info(`Removed non-working proxy: ${proxy.host}:${proxy.port}`);
+                }
+            }
+        }
     }
 
     isInitialized() {

@@ -8,14 +8,14 @@ class Provider20 extends ProviderInterface {
     super();
     this.baseUrl = 'https://www.zaimaai.cn/api/zaimaai/chat';
     this.modelInfo = {
-      modelId: "gpt-3.5-turbo",
-      name: "gpt-3.5-turbo",
-      description: "OpenAI's GPT-3.5 Turbo model",
-      context_window: "4000",
-      author: "OpenAI",
-      unfiltered: false,
-      reverseStatus: "Testing",
-      devNotes: ""
+        modelId: "gpt-3.5-turbo",
+        name: "gpt-3.5-turbo",
+        description: "A versatile and efficient language model, widely used for various AI applications",
+        context_window: 4096,
+        author: "OpenAI",
+        unfiltered: false,
+        reverseStatus: "Testing",
+        devNotes: ""
     };
   }
 

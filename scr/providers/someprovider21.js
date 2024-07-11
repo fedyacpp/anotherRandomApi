@@ -7,8 +7,8 @@ class Provider21 {
     this.modelInfo = {
       modelId: "gpt-3.5-turbo-0125",
       name: "gpt-3.5-turbo-0125",
-      description: "Latest snapshot of OpenAI's GPT-3.5 Turbo 16k model",
-      context_window: "16000",
+      description: "The most recent iteration of GPT-3.5 Turbo, featuring improvements in performance and capabilities",
+      context_window: 16384,
       author: "OpenAI",
       unfiltered: true,
       reverseStatus: "Testing",

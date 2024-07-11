@@ -51,37 +51,67 @@ class ChatCompletionService {static async generateCompletion(model, messages, te
       setTimeout(() => reject(new Error('Request timed out')), timeout)
     );
   
+    const responseId = `chatcmpl-${generateRandomId()}`;
+    const created = Math.floor(Date.now() / 1000);
+  
     try {
       const streamGenerator = this._generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call);
       
-      const responseId = `chatcmpl-${generateRandomId()}`;
-      const created = Math.floor(Date.now() / 1000);
-  
       for await (const chunk of streamGenerator) {
-        yield {
-          id: responseId,
-          object: "chat.completion.chunk",
-          created: created,
-          model: model,
-          choices: [
-            {
-              delta: chunk.choices[0].delta,
-              index: 0,
-              finish_reason: chunk.choices[0].finish_reason
-            }
-          ]
-        };
+        try {
+          yield {
+            id: responseId,
+            object: "chat.completion.chunk",
+            created: created,
+            model: model,
+            choices: [
+              {
+                delta: chunk.choices[0].delta,
+                index: 0,
+                finish_reason: chunk.choices[0].finish_reason
+              }
+            ]
+          };
   
-        await Promise.race([Promise.resolve(), timeoutPromise]);
+          await Promise.race([Promise.resolve(), timeoutPromise]);
+        } catch (chunkError) {
+          Logger.error(`Error processing chunk: ${chunkError.message}`, { stack: chunkError.stack });
+          throw chunkError;
+        }
       }
       
       Logger.success(`Streaming completion finished for model: ${model}`);
+      
+      yield {
+        id: responseId,
+        object: "chat.completion.chunk",
+        created: created,
+        model: model,
+        choices: [
+          {
+            delta: {},
+            index: 0,
+            finish_reason: "stop"
+          }
+        ]
+      };
     } catch (error) {
-      Logger.error(`Error in completion stream: ${error.message}`);
-      throw error;
+      Logger.error(`Error in completion stream: ${error.message}`, { stack: error.stack });
+      yield {
+        id: responseId,
+        object: "chat.completion.chunk",
+        created: created,
+        model: model,
+        choices: [
+          {
+            delta: { content: `Error: ${error.message}` },
+            index: 0,
+            finish_reason: "error"
+          }
+        ]
+      };
     }
   }
-
   static async *_generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call) {
     const providers = ProviderPool.getProviders(model);
     this.validateProviders(providers, model);
@@ -109,27 +139,24 @@ class ChatCompletionService {static async generateCompletion(model, messages, te
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model: model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: providerResponse.content
-          },
-          finish_reason: "stop"
-        }
-      ],
       usage: {
         prompt_tokens: providerResponse.usage?.prompt_tokens ?? -1,
         completion_tokens: providerResponse.usage?.completion_tokens ?? -1,
         total_tokens: providerResponse.usage?.total_tokens ?? -1
-      }
+      },
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: providerResponse.content
+          },
+          logprobs: null,
+          finish_reason: "stop",
+          index: 0
+        }
+      ]
     };
-
-    if (providerResponse.function_call) {
-      response.choices[0].message.function_call = providerResponse.function_call;
-    }
-
+  
     return response;
   }
 

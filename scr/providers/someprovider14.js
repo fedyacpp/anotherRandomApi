@@ -14,8 +14,8 @@ class Provider14 extends ProviderInterface {
         this.modelInfo = {
             modelId: "gemma-2-27b-it",
             name: "gemma-2-27b-it",
-            description: "Google's open-source model",
-            context_window: 8000,
+            description: "Google's substantial open-source model, balancing performance and accessibility",
+            context_window: 8192,
             author: "Google",
             unfiltered: true,
             reverseStatus: "Testing",

@@ -14,8 +14,8 @@ class Provider13 extends ProviderInterface {
         this.modelInfo = {
             modelId: "nemotron-4-340b-instruct",
             name: "nemotron-4-340b-instruct",
-            description: "NVIDIA's open-source model",
-            context_window: 4000,
+            description: "NVIDIA's large-scale model showcasing advancements in AI processing capabilities",
+            context_window: 4096,
             author: "NVIDIA",
             unfiltered: true,
             reverseStatus: "Testing",
