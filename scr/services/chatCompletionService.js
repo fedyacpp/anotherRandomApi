@@ -2,48 +2,44 @@ const ProviderPool = require('../providers/ProviderPool');
 const { generateRandomId } = require('../helpers/utils');
 const Logger = require('../helpers/logger');
 
-class ChatCompletionService {static async generateCompletion(model, messages, temperature, max_tokens, functions, function_call, timeout) {
-  Logger.info('ChatCompletionService: Starting generateCompletion', { 
-    model, 
-    messagesCount: messages.length, 
-    temperature, 
-    max_tokens, 
-    timeout 
-  });
-  
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Request timed out')), timeout)
-  );
-  
-  try {
-    const result = await Promise.race([
-      this._generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call),
-      timeoutPromise
-    ]);
-    Logger.info('ChatCompletionService: Completion generated successfully');
-    return result;
-  } catch (error) {
-    Logger.error(`ChatCompletionService: Error generating completion: ${error.message}`, { stack: error.stack });
-    throw error;
-  }
-}
-
-  static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
+class ChatCompletionService {
+  static async generateCompletion(model, messages, temperature, max_tokens, functions, function_call, timeout) {
+    Logger.info('ChatCompletionService: Starting generateCompletion', { 
+      model, 
+      messagesCount: messages.length, 
+      temperature, 
+      max_tokens, 
+      timeout 
+    });
+    
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), timeout)
+    );
+    
     try {
-      const providers = ProviderPool.getProviders(model);
-      this.validateProviders(providers, model);
-      const randomProvider = this.getRandomProvider(providers);
-      Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
-      
-      const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
-      if (!providerResponse || !providerResponse.content) {
-        throw new Error('Provider returned empty response');
-      }
-      return this.formatResponse(model, providerResponse);
+      const result = await Promise.race([
+        this._generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call),
+        timeoutPromise
+      ]);
+      Logger.info('ChatCompletionService: Completion generated successfully');
+      return result;
     } catch (error) {
-      Logger.error(`Error in _generateCompletionInternal: ${error.message}`, { stack: error.stack });
+      Logger.error(`ChatCompletionService: Error generating completion: ${error.message}`, { stack: error.stack });
       throw error;
     }
+  }
+
+  static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
+    const providers = ProviderPool.getProviders(model);
+    this.validateProviders(providers, model);
+    const randomProvider = this.getRandomProvider(providers);
+    Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
+    
+    const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
+    if (!providerResponse || !providerResponse.content) {
+      throw new Error('Provider returned empty response');
+    }
+    return this.formatResponse(model, providerResponse);
   }
 
   static async *generateCompletionStream(model, messages, temperature, max_tokens, functions, function_call, timeout) {
@@ -58,74 +54,32 @@ class ChatCompletionService {static async generateCompletion(model, messages, te
       const streamGenerator = this._generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call);
       
       for await (const chunk of streamGenerator) {
-        try {
-          yield {
-            id: responseId,
-            object: "chat.completion.chunk",
-            created: created,
-            model: model,
-            choices: [
-              {
-                delta: chunk.choices[0].delta,
-                index: 0,
-                finish_reason: chunk.choices[0].finish_reason
-              }
-            ]
-          };
-  
-          await Promise.race([Promise.resolve(), timeoutPromise]);
-        } catch (chunkError) {
-          Logger.error(`Error processing chunk: ${chunkError.message}`, { stack: chunkError.stack });
-          throw chunkError;
-        }
+        yield this.formatStreamChunk(responseId, created, model, chunk);
+        await Promise.race([Promise.resolve(), timeoutPromise]);
       }
       
-      Logger.success(`Streaming completion finished for model: ${model}`);
-      
-      yield {
-        id: responseId,
-        object: "chat.completion.chunk",
-        created: created,
-        model: model,
-        choices: [
-          {
-            delta: {},
-            index: 0,
-            finish_reason: "stop"
-          }
-        ]
-      };
+      Logger.info(`Streaming completion finished for model: ${model}`);
+      yield this.formatFinalStreamChunk(responseId, created, model);
     } catch (error) {
       Logger.error(`Error in completion stream: ${error.message}`, { stack: error.stack });
-      yield {
-        id: responseId,
-        object: "chat.completion.chunk",
-        created: created,
-        model: model,
-        choices: [
-          {
-            delta: { content: `Error: ${error.message}` },
-            index: 0,
-            finish_reason: "error"
-          }
-        ]
-      };
+      yield this.formatErrorStreamChunk(responseId, created, model, error);
     }
   }
+
   static async *_generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call) {
     const providers = ProviderPool.getProviders(model);
     this.validateProviders(providers, model);
     const randomProvider = this.getRandomProvider(providers);
     Logger.info(`Starting streaming completion for model: ${model} using provider: ${randomProvider.constructor.name}`);
+    
     try {
-        const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
-        
-        for await (const chunk of stream) {
-            yield chunk;
-        }
+      const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
+      for await (const chunk of stream) {
+        yield chunk;
+      }
     } catch (error) {
-        Logger.error(`Error in provider ${randomProvider.constructor.name}: ${error.message}`);
-        throw new Error(`An unexpected error occurred. Please try again later.`);
+      Logger.error(`Error in provider ${randomProvider.constructor.name}: ${error.message}`);
+      throw new Error(`An unexpected error occurred. Please try again later.`);
     }
   }
 
@@ -134,7 +88,7 @@ class ChatCompletionService {static async generateCompletion(model, messages, te
       throw new Error('No content provided for response formatting');
     }
     
-    const response = {
+    return {
       id: `chatcmpl-${generateRandomId()}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
@@ -156,8 +110,54 @@ class ChatCompletionService {static async generateCompletion(model, messages, te
         }
       ]
     };
-  
-    return response;
+  }
+
+  static formatStreamChunk(responseId, created, model, chunk) {
+    return {
+      id: responseId,
+      object: "chat.completion.chunk",
+      created: created,
+      model: model,
+      choices: [
+        {
+          delta: chunk.choices[0].delta,
+          index: 0,
+          finish_reason: chunk.choices[0].finish_reason
+        }
+      ]
+    };
+  }
+
+  static formatFinalStreamChunk(responseId, created, model) {
+    return {
+      id: responseId,
+      object: "chat.completion.chunk",
+      created: created,
+      model: model,
+      choices: [
+        {
+          delta: {},
+          index: 0,
+          finish_reason: "stop"
+        }
+      ]
+    };
+  }
+
+  static formatErrorStreamChunk(responseId, created, model, error) {
+    return {
+      id: responseId,
+      object: "chat.completion.chunk",
+      created: created,
+      model: model,
+      choices: [
+        {
+          delta: { content: `Error: ${error.message}` },
+          index: 0,
+          finish_reason: "error"
+        }
+      ]
+    };
   }
 
   static validateProviders(providers, model) {

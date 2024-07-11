@@ -1,6 +1,9 @@
 const ChatCompletionService = require('../services/chatCompletionService');
 const Logger = require('../helpers/logger');
 const { ValidationError, TimeoutError } = require('../utils/errors');
+const NodeCache = require('node-cache');
+
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes
 
 exports.getChatCompletion = async (req, res, next) => {
   const startTime = Date.now();
@@ -74,42 +77,35 @@ exports.getChatCompletion = async (req, res, next) => {
         'Connection': 'keep-alive',
       });
     
-      try {
-        const streamGenerator = ChatCompletionService.generateCompletionStream(
-          model, messages, temperature, max_tokens, functions, function_call, 30000
-        );
+      const streamGenerator = ChatCompletionService.generateCompletionStream(
+        model, messages, temperature, max_tokens, functions, function_call, 30000
+      );
     
-        for await (const chunk of streamGenerator) {
-          if (res.writableEnded) break;
-          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-        }
-        
-        if (!res.writableEnded) {
-          res.write('data: [DONE]\n\n');
-          Logger.success(`Streaming chat completion generated successfully`, { model, ip, duration: Date.now() - startTime });
-          res.end();
-        }
-      } catch (error) {
-        Logger.error(`Error in stream generation`, { error: error.message, model, ip });
-        if (!res.headersSent) {
-          res.status(500).json({
-            error: {
-              message: "An error occurred during stream generation",
-              type: "api_error",
-              param: null,
-              code: "stream_error"
-            }
-          });
-        } else if (!res.writableEnded) {
-          res.write(`data: ${JSON.stringify({error: "Stream error occurred"})}\n\n`);
-          res.end();
-        }
+      for await (const chunk of streamGenerator) {
+        if (res.writableEnded) break;
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+      
+      if (!res.writableEnded) {
+        res.write('data: [DONE]\n\n');
+        Logger.success(`Streaming chat completion generated successfully`, { model, ip, duration: Date.now() - startTime });
+        res.end();
       }
     } else {
+      const cacheKey = JSON.stringify({ model, messages, temperature, max_tokens, functions, function_call });
+      const cachedResult = cache.get(cacheKey);
+
+      if (cachedResult) {
+        Logger.info(`Returning cached chat completion`, { model, ip });
+        return res.json(cachedResult);
+      }
+
       const completion = await ChatCompletionService.generateCompletion(
         model, messages, temperature, max_tokens, functions, function_call, timeout
       );
       Logger.success(`Chat completion generated successfully`, { model, ip, duration: Date.now() - startTime });
+      
+      cache.set(cacheKey, completion);
       res.json(completion);
     }
   } catch (error) {
@@ -119,7 +115,7 @@ exports.getChatCompletion = async (req, res, next) => {
       ip: req.ip, 
       duration: Date.now() - startTime 
     });
-    next(error);
+    
     if (error.name === 'ProviderError') {
       res.status(500).json({
         error: {
@@ -138,6 +134,15 @@ exports.getChatCompletion = async (req, res, next) => {
           code: "timeout"
         }
       });
+    } else if (error instanceof ValidationError) {
+      res.status(400).json({
+        error: {
+          message: error.message,
+          type: "validation_error",
+          param: null,
+          code: "invalid_request_error"
+        }
+      });
     } else {
       res.status(500).json({
         error: {
@@ -148,5 +153,6 @@ exports.getChatCompletion = async (req, res, next) => {
         }
       });
     }
+    next(error);
   }
 };

@@ -3,6 +3,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { spawn } = require('child_process');
+const cluster = require('cluster');
+const os = require('os');
 
 const config = require('../config');
 const routes = require('../routes');
@@ -73,16 +75,30 @@ class Server {
 
     async start() {
         try {
-            this.server = this.app.listen(config.port, () => {
-                Logger.success(`Server running on port ${config.port} in ${config.environment} mode`);
-            });
-    
-            this.setupGracefulShutdown();
-    
-            await this.initializeProxyManager();
-            Logger.info('Starting CF Clearance Scraper...');
-            await this.startCFClearanceScraper();
-            Logger.success('Server and CF Clearance Scraper are fully operational');
+            if (cluster.isMaster) {
+                Logger.info(`Master ${process.pid} is running`);
+
+                const numCPUs = os.cpus().length;
+                for (let i = 0; i < numCPUs; i++) {
+                    cluster.fork();
+                }
+
+                cluster.on('exit', (worker, code, signal) => {
+                    Logger.warn(`Worker ${worker.process.pid} died`);
+                    cluster.fork();
+                });
+
+                await this.initializeProxyManager();
+                Logger.info('Starting CF Clearance Scraper...');
+                await this.startCFClearanceScraper();
+                Logger.success('Server and CF Clearance Scraper are fully operational');
+            } else {
+                this.server = this.app.listen(config.port, () => {
+                    Logger.success(`Worker ${process.pid} running on port ${config.port} in ${config.environment} mode`);
+                });
+
+                this.setupGracefulShutdown();
+            }
         } catch (error) {
             Logger.error('Failed to start server:', error);
             process.exit(1);
@@ -184,5 +200,10 @@ class Server {
     }
 }
 
-const server = new Server();
-server.start();
+if (cluster.isMaster) {
+    const server = new Server();
+    server.start();
+} else {
+    const server = new Server();
+    server.start();
+}

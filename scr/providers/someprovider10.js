@@ -4,6 +4,17 @@ const https = require('https');
 const ProviderInterface = require('./ProviderInterface');
 const Logger = require('../helpers/logger');
 const proxyManager = require('../helpers/proxyManager');
+const { promisify } = require('util');
+const sleep = promisify(setTimeout);
+
+class Provider10Error extends Error {
+  constructor(message, code, originalError = null) {
+    super(message);
+    this.name = 'Provider10Error';
+    this.code = code;
+    this.originalError = originalError;
+  }
+}
 
 class Provider10 extends ProviderInterface {
     constructor() {
@@ -31,6 +42,12 @@ class Provider10 extends ProviderInterface {
         this.authCode = null;
         this.cookieJar = null;
         this.maxAttempts = 3;
+        this.rateLimiter = {
+            tokens: 100,
+            refillRate: 50,
+            lastRefill: Date.now(),
+            capacity: 500
+        };
     }
 
     getHeaders() {
@@ -50,7 +67,11 @@ class Provider10 extends ProviderInterface {
     getAxiosConfig() {
         return {
             headers: this.getHeaders(),
-            httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+            httpsAgent: new https.Agent({ 
+                rejectUnauthorized: false,
+                keepAlive: true,
+                maxSockets: 100
+            }),
             timeout: 60000,
             validateStatus: status => status >= 200 && status < 400
         };
@@ -89,11 +110,13 @@ class Provider10 extends ProviderInterface {
             Logger.info(`Auth code obtained: ${this.authCode}, Balance: ${userInfoResponse.data.balance}`);
         } catch (error) {
             Logger.error(`Failed to refresh auth code: ${error.message}`);
-            throw error;
+            throw new Provider10Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
         }
     }
 
     async makeRequest(endpoint, data, stream = false) {
+        await this.waitForRateLimit();
+        
         const config = {
             ...this.getAxiosConfig(),
             headers: {
@@ -114,8 +137,26 @@ class Provider10 extends ProviderInterface {
                 await this.refreshAuthCode();
                 return this.makeRequest(endpoint, data, stream);
             }
-            throw error;
+            throw new Provider10Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
+    }
+
+    async waitForRateLimit() {
+        const now = Date.now();
+        const elapsedMs = now - this.rateLimiter.lastRefill;
+        this.rateLimiter.tokens = Math.min(
+            this.rateLimiter.capacity,
+            this.rateLimiter.tokens + (elapsedMs * this.rateLimiter.refillRate) / 1000
+        );
+        this.rateLimiter.lastRefill = now;
+
+        if (this.rateLimiter.tokens < 1) {
+            const waitMs = (1 - this.rateLimiter.tokens) * (1000 / this.rateLimiter.refillRate);
+            await sleep(waitMs);
+            return this.waitForRateLimit();
+        }
+
+        this.rateLimiter.tokens -= 1;
     }
 
     async generateCompletion(messages, temperature, max_tokens) {
@@ -135,7 +176,7 @@ class Provider10 extends ProviderInterface {
                 for await (const chunk of response.data) {
                     const chunkStr = chunk.toString();
                     if (chunkStr.includes('<html')) {
-                        throw new Error('Invalid session');
+                        throw new Provider10Error('Invalid session', 'INVALID_SESSION');
                     }
                     fullContent += chunkStr;
                 }
@@ -145,10 +186,10 @@ class Provider10 extends ProviderInterface {
                 return { content: fullContent };
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
-                if (error.message.includes('Invalid session')) {
+                if (error instanceof Provider10Error && error.code === 'INVALID_SESSION') {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw error;
+                    throw new Provider10Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -171,7 +212,7 @@ class Provider10 extends ProviderInterface {
                 for await (const chunk of response.data) {
                     const chunkStr = chunk.toString();
                     if (chunkStr.includes('<html')) {
-                        throw new Error('Invalid session');
+                        throw new Provider10Error('Invalid session', 'INVALID_SESSION');
                     }
                     buffer += chunkStr;
                     
@@ -204,10 +245,10 @@ class Provider10 extends ProviderInterface {
                 return;
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
-                if (error.message.includes('Invalid session')) {
+                if (error instanceof Provider10Error && error.code === 'INVALID_SESSION') {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw error;
+                    throw new Provider10Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
