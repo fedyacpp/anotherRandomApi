@@ -102,14 +102,6 @@ class provider23 {
         role: 'assistant',
         content: assistantResponse
       });
-
-      yield {
-        choices: [{
-          delta: {},
-          index: 0,
-          finish_reason: "stop"
-        }]
-      };
     } catch (error) {
       this.handleError(error);
       throw error;

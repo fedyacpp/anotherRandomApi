@@ -124,14 +124,6 @@ async *generateCompletionStream(messages, temperature, max_tokens, functions, fu
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        yield {
-            choices: [{
-                delta: {},
-                index: 0,
-                finish_reason: "stop"
-            }]
-        };
-
     } catch (error) {
         Logger.error('Provider20: Error in generateCompletionStream:', error.message);
         if (error.response) {

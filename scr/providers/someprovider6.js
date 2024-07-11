@@ -201,14 +201,6 @@ class Provider6 extends ProviderInterface {
                     };
                 }
     
-                yield {
-                    choices: [{
-                        delta: {},
-                        index: 0,
-                        finish_reason: "stop"
-                    }]
-                };
-    
                 return;
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);

@@ -169,13 +169,6 @@ class Provider18 extends ProviderInterface {
                     }
     
                     if (data.final) {
-                        yield {
-                            choices: [{
-                                delta: {},
-                                index: 0,
-                                finish_reason: "stop"
-                            }]
-                        };
                         break;
                     }
                 } catch (error) {
