@@ -1,6 +1,5 @@
 const express = require('express');
 const chatCompletionsController = require('../controllers/chatCompletionsController');
-const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const rateLimit = require('express-rate-limit');
 const Logger = require('../helpers/logger');
 
@@ -20,7 +19,6 @@ router.post('/',
         next();
     },
     limiter,
-    apiKeyMiddleware,
     chatCompletionsController.getChatCompletion
 );
 

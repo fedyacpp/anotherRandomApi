@@ -40,10 +40,14 @@ class Server {
             if (req.url === '/v1/models' && req.method === 'GET') {
                 return next();
             }
-            limiter(req, res, (err) => {
-                if (err) return next(err);
-                apiKeyMiddleware(req, res, next);
-            });
+            limiter(req, res, next);
+        });
+        
+        this.app.use((req, res, next) => {
+            if (req.url === '/v1/models' && req.method === 'GET') {
+                return next();
+            }
+            apiKeyMiddleware(req, res, next);
         });
 
         const jsonLimit = config.environment === 'production' ? '50mb' : '100mb';

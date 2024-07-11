@@ -1,6 +1,5 @@
 const express = require('express');
 const modelsController = require('../controllers/modelsController');
-const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const Logger = require('../helpers/logger');
 const mcache = require('memory-cache');
 
@@ -29,7 +28,6 @@ router.get('/',
         Logger.info(`Incoming models request`, { ip: req.ip });
         next();
     },
-    apiKeyMiddleware,
     cache(300),
     modelsController.getModels
 );
