@@ -93,9 +93,15 @@ class Server {
                 });
 
                 await this.initializeProxyManager();
-                Logger.info('Starting CF Clearance Scraper...');
-                await this.startCFClearanceScraper();
-                Logger.success('Server and CF Clearance Scraper are fully operational');
+                
+                if (config.useCFClearanceScraper) {
+                    Logger.info('Starting CF Clearance Scraper...');
+                    await this.startCFClearanceScraper();
+                    Logger.success('Server and CF Clearance Scraper are fully operational');
+                } else {
+                    Logger.info('CF Clearance Scraper is disabled');
+                    Logger.success('Server is fully operational');
+                }
             } else {
                 this.server = this.app.listen(config.port, () => {
                     Logger.success(`Worker ${process.pid} running on port ${config.port} in ${config.environment} mode`);
@@ -119,6 +125,11 @@ class Server {
     }
 
     async startCFClearanceScraper() {
+        if (!config.useCFClearanceScraper) {
+            Logger.info('CF Clearance Scraper is disabled. Skipping start.');
+            return;
+        }
+
         return new Promise((resolve, reject) => {
             try {
                 const scraperPath = path.resolve(__dirname, '../../cf-clearance-scraper');
@@ -177,7 +188,7 @@ class Server {
             if (proxyManager.isInitialized()) {
                 proxyManager.stopPeriodicUpdate();
             }
-            if (this.cfClearanceScraperProcess) {
+            if (this.cfClearanceScraperProcess && config.useCFClearanceScraper) {
                 this.cfClearanceScraperProcess.kill();
             }
             this.server.close(() => {
