@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
@@ -6,41 +8,36 @@ class ProviderPool {
   static modelsInfo = [];
 
   static initialize() {
-    const providerClasses = [
-      require('./someprovider1'),
-      require('./someprovider2'),
-      require('./someprovider3'),
-      require('./someprovider4'),
-      require('./someprovider5'),
-      require('./someprovider6'),
-      require('./someprovider7'),
-      require('./someprovider8'),
-      require('./someprovider9'),
-      require('./someprovider10'),
-      require('./someprovider11'),
-      require('./someprovider12'),
-      require('./someprovider13'),
-      require('./someprovider14'),
-      require('./someprovider15'),
-      require('./someprovider16'),
-      require('./someprovider17'),
-      require('./someprovider18'),
-      require('./someprovider19'),
-      require('./someprovider20'),
-      require('./someprovider21'),
-      require('./someprovider22'),
-      require('./someprovider23'),
-      require('./someprovider24')
-    ];
-
-    this.providers = providerClasses.map(ProviderClass => new ProviderClass());
+    Logger.info('Initializing ProviderPool');
+    this.loadProviders();
     this.updateModelProviderMap();
     this.updateModelsInfo();
+  }
+
+  static loadProviders() {
+    const providerDir = __dirname;
+    const providerFiles = fs.readdirSync(providerDir).filter(file => 
+      file.startsWith('someprovider') && file.endsWith('.js')
+    );
+
+    Logger.info(`Found ${providerFiles.length} provider files`);
+
+    this.providers = providerFiles.map(file => {
+      const ProviderClass = require(path.join(providerDir, file));
+      return new ProviderClass();
+    });
+
+    Logger.info(`Loaded ${this.providers.length} providers`);
   }
 
   static updateModelProviderMap() {
     this.modelProviderMap.clear();
     this.providers.forEach(provider => {
+      if (!provider.modelInfo || !provider.modelInfo.modelId) {
+        Logger.warn(`Provider ${provider.constructor.name} has invalid modelInfo`);
+        return;
+      }
+
       const modelId = provider.modelInfo.modelId;
       
       if (!this.modelProviderMap.has(modelId)) {
@@ -48,27 +45,27 @@ class ProviderPool {
       }
       this.modelProviderMap.get(modelId).add(provider);
     });
+
+    Logger.info(`Updated model-provider map with ${this.modelProviderMap.size} models`);
   }
 
   static updateModelsInfo() {
     const modelsMap = new Map();
-
     this.providers.forEach(provider => {
       if (!provider.modelInfo) {
         Logger.warn(`Provider ${provider.constructor.name} has no modelInfo`);
         return;
       }
-
       const modelInfo = { ...provider.modelInfo, providerCount: 1 };
-
       if (modelsMap.has(modelInfo.modelId)) {
         modelsMap.get(modelInfo.modelId).providerCount += 1;
       } else {
         modelsMap.set(modelInfo.modelId, modelInfo);
       }
     });
-
     this.modelsInfo = Array.from(modelsMap.values());
+
+    Logger.info(`Updated models info with ${this.modelsInfo.length} unique models`);
   }
 
   static getProviders(modelIdentifier) {

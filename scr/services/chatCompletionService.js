@@ -3,6 +3,8 @@ const { generateRandomId } = require('../helpers/utils');
 const Logger = require('../helpers/logger');
 
 class ChatCompletionService {
+  static providerPerformance = new Map();
+
   static async generateCompletion(model, messages, temperature, max_tokens, functions, function_call, timeout) {
     Logger.info('ChatCompletionService: Starting generateCompletion', { 
       model, 
@@ -32,14 +34,63 @@ class ChatCompletionService {
   static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
     const providers = ProviderPool.getProviders(model);
     this.validateProviders(providers, model);
-    const randomProvider = this.getRandomProvider(providers);
-    Logger.info(`Using provider: ${randomProvider.constructor.name} for model: ${model}`);
+    const selectedProvider = this.selectProvider(providers);
+    Logger.info(`Using provider: ${selectedProvider.constructor.name} for model: ${model}`);
     
-    const providerResponse = await randomProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
-    if (!providerResponse || !providerResponse.content) {
-      throw new Error('Provider returned empty response');
+    const startTime = Date.now();
+    try {
+      const providerResponse = await selectedProvider.generateCompletion(messages, temperature, max_tokens, functions, function_call);
+      if (!providerResponse || !providerResponse.content) {
+        throw new Error('Provider returned empty response');
+      }
+      const endTime = Date.now();
+      this.updateProviderPerformance(selectedProvider, endTime - startTime, true);
+      return this.formatResponse(model, providerResponse);
+    } catch (error) {
+      const endTime = Date.now();
+      this.updateProviderPerformance(selectedProvider, endTime - startTime, false);
+      throw error;
     }
-    return this.formatResponse(model, providerResponse);
+  }
+
+  static selectProvider(providers) {
+    const sortedProviders = providers.sort((a, b) => {
+      const perfA = this.providerPerformance.get(a.constructor.name) || { successRate: 0, avgResponseTime: Infinity };
+      const perfB = this.providerPerformance.get(b.constructor.name) || { successRate: 0, avgResponseTime: Infinity };
+      
+      if (perfA.successRate !== perfB.successRate) {
+        return perfB.successRate - perfA.successRate;
+      }
+      return perfA.avgResponseTime - perfB.avgResponseTime;
+    });
+
+    const totalProviders = sortedProviders.length;
+    const randomValue = Math.random();
+    const selectedIndex = Math.floor(Math.pow(randomValue, 2) * totalProviders);
+    
+    return sortedProviders[selectedIndex];
+  }
+
+  static updateProviderPerformance(provider, responseTime, isSuccess) {
+    const providerName = provider.constructor.name;
+    const currentPerf = this.providerPerformance.get(providerName) || { 
+      totalCalls: 0, 
+      successfulCalls: 0, 
+      totalResponseTime: 0, 
+      avgResponseTime: 0, 
+      successRate: 0 
+    };
+
+    currentPerf.totalCalls++;
+    currentPerf.totalResponseTime += responseTime;
+    if (isSuccess) {
+      currentPerf.successfulCalls++;
+    }
+
+    currentPerf.avgResponseTime = currentPerf.totalResponseTime / currentPerf.totalCalls;
+    currentPerf.successRate = currentPerf.successfulCalls / currentPerf.totalCalls;
+
+    this.providerPerformance.set(providerName, currentPerf);
   }
 
   static async *generateCompletionStream(model, messages, temperature, max_tokens, functions, function_call, timeout) {
@@ -69,16 +120,21 @@ class ChatCompletionService {
   static async *_generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call) {
     const providers = ProviderPool.getProviders(model);
     this.validateProviders(providers, model);
-    const randomProvider = this.getRandomProvider(providers);
-    Logger.info(`Starting streaming completion for model: ${model} using provider: ${randomProvider.constructor.name}`);
+    const selectedProvider = this.selectProvider(providers);
+    Logger.info(`Starting streaming completion for model: ${model} using provider: ${selectedProvider.constructor.name}`);
     
+    const startTime = Date.now();
     try {
-      const stream = randomProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
+      const stream = selectedProvider.generateCompletionStream(messages, temperature, max_tokens, functions, function_call);
       for await (const chunk of stream) {
         yield chunk;
       }
+      const endTime = Date.now();
+      this.updateProviderPerformance(selectedProvider, endTime - startTime, true);
     } catch (error) {
-      Logger.error(`Error in provider ${randomProvider.constructor.name}: ${error.message}`);
+      const endTime = Date.now();
+      this.updateProviderPerformance(selectedProvider, endTime - startTime, false);
+      Logger.error(`Error in provider ${selectedProvider.constructor.name}: ${error.message}`);
       throw new Error(`An unexpected error occurred. Please try again later.`);
     }
   }
@@ -166,10 +222,6 @@ class ChatCompletionService {
       error.name = 'ProviderError';
       throw error;
     }
-  }
-
-  static getRandomProvider(providers) {
-    return providers[Math.floor(Math.random() * providers.length)];
   }
 }
 

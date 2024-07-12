@@ -23,4 +23,3 @@ To add a new provider:
 1. Create a new file in `src/providers/`
 2. Extend the `ProviderInterface` class
 3. Implement the `generateCompletion` and `*generateCompletionStream` methods
-4. Add the new provider to `ProviderPool.js`
