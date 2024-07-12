@@ -10,4 +10,5 @@ module.exports = {
   redisUrl: process.env.REDIS_URL,
   rateLimitWindow: process.env.RATE_LIMIT_WINDOW || 15 * 60 * 1000,
   rateLimitMax: process.env.RATE_LIMIT_MAX || 100,
+  useCFClearanceScraper: process.env.USE_CF_CLEARANCE_SCRAPER === 'true' || false,
 };
