@@ -12,7 +12,6 @@ class BrowserManager {
     this.browser = null;
     this.page = null;
     this.cookies = null;
-    this.capturedRequests = [];
   }
 
   async init() {
@@ -26,53 +25,25 @@ class BrowserManager {
       const response = await connect({
         headless: this.options.headless,
         turnstile: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        customConfig: {},
+        args: [
+          '--no-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-infobars',
+          '--window-size=1920,1080',
+        ],
+        defaultViewport: null,
+        ignoreHTTPSErrors: true,
       });
       
       this.browser = response.browser;
       this.page = response.page;
   
-      Logger.info(`Navigating to ${this.options.url}`);
-      
+      Logger.info('Browser and page initialized successfully');
+
       this.page.on('console', msg => Logger.info(`Browser Console: ${msg.text()}`));
+      this.page.on('error', error => Logger.error('Page error:', error));
+      this.page.on('pageerror', error => Logger.error('Page error:', error));
 
-      this.page.on('error', error => {
-        Logger.error('Page error:', error);
-      });
-
-      this.page.on('pageerror', error => {
-        Logger.error('Page error:', error);
-      });
-  
-      await Promise.race([
-        this.page.goto(this.options.url, { waitUntil: 'networkidle0' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), this.options.timeout))
-      ]);
-  
-      Logger.info('Page loaded, waiting for selector...');
-  
-      await this.page.waitForSelector(this.options.waitForSelector, { timeout: this.options.timeout });
-      
-      Logger.info(`Selector "${this.options.waitForSelector}" found`);
-
-      this.cookies = await this.page.cookies();
-      if (this.cookies.length === 0) {
-        Logger.warn('No cookies found with page.cookies(), trying CDP...');
-        const client = await this.page.target().createCDPSession();
-        const cdpCookies = await client.send('Network.getAllCookies');
-        this.cookies = cdpCookies.cookies;
-      }
-
-      Logger.info(`Cookies loaded: ${this.cookies.length}`);
-  
-      if (this.cookies.length === 0) {
-        Logger.warn('No cookies were loaded');
-      } else {
-        Logger.info('Cookies:', this.cookies);
-      }
-  
-      Logger.info('Browser session initialized successfully');
     } catch (error) {
       Logger.error('Error initializing browser:', error);
       throw error;
@@ -110,6 +81,77 @@ class BrowserManager {
     await this.init();
     await this.page.setUserAgent(userAgent);
     Logger.info(`User agent set to: ${userAgent}`);
+  }
+
+  async logModalStructure() {
+    try {
+      const modalStructure = await this.page.evaluate(() => {
+        const modal = document.querySelector('body > div.modal-mask');
+        return modal ? modal.outerHTML : 'Modal not found';
+      });
+      Logger.info('Modal structure:', modalStructure);
+    } catch (error) {
+      Logger.error('Error logging modal structure:', error);
+    }
+  }
+  
+  async getPageCookies(url) {
+    try {
+      await this.init();
+  
+      if (!this.page) {
+        throw new Error('Page is not initialized');
+      }
+  
+      const currentUrl = await this.page.url();
+      if (currentUrl !== url) {
+        Logger.info(`Navigating to ${url}`);
+        await this.page.goto(url, { waitUntil: 'networkidle2', timeout: this.options.timeout });
+      }
+      
+      // Ждем, пока кнопка станет доступной
+      await this.page.waitForSelector('body > div.modal-mask > div > button', { visible: true, timeout: 10000 });
+  
+      // Пытаемся нажать на кнопку несколько раз
+      for (let i = 0; i < 3; i++) {
+        try {
+          await this.page.evaluate(() => {
+            const button = document.querySelector('body > div.modal-mask > div > button');
+            if (button) {
+              button.click();
+            } else {
+              throw new Error('Button not found');
+            }
+          });
+          Logger.info('Clicked the button successfully');
+          break;
+        } catch (clickError) {
+          Logger.warn(`Failed to click button (attempt ${i + 1}):`, clickError.message);
+          if (i === 2) {
+            throw new Error('Failed to click button after multiple attempts');
+          }
+          await this.page.waitForTimeout(1000);
+        }
+      }
+  
+      // Даем дополнительное время для загрузки после клика
+      await this.page.waitForTimeout(2000);
+      
+      const client = await this.page.target().createCDPSession();
+      const {cookies} = await client.send('Network.getAllCookies');
+      
+      Logger.info(`Retrieved ${cookies.length} cookies`);
+      
+      if (cookies.length === 0) {
+        Logger.warn('No cookies found');
+      }
+      
+      return cookies;
+    } catch (error) {
+      await this.logModalStructure();
+      Logger.error('Error in getPageCookies:', error);
+      throw new Error('Failed to get page cookies: ' + error.message);
+    }
   }
 }
 

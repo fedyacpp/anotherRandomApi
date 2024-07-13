@@ -79,41 +79,41 @@ class Server {
 
     async start() {
         try {
-            if (cluster.isMaster) {
-                Logger.info(`Master ${process.pid} is running`);
-
-                const numCPUs = os.cpus().length;
-                for (let i = 0; i < numCPUs; i++) {
-                    cluster.fork();
-                }
-
-                cluster.on('exit', (worker, code, signal) => {
-                    Logger.warn(`Worker ${worker.process.pid} died`);
-                    cluster.fork();
-                });
-
-                await this.initializeProxyManager();
-                
-                if (config.useCFClearanceScraper) {
-                    Logger.info('Starting CF Clearance Scraper...');
-                    await this.startCFClearanceScraper();
-                    Logger.success('Server and CF Clearance Scraper are fully operational');
-                } else {
-                    Logger.info('CF Clearance Scraper is disabled');
-                    Logger.success('Server is fully operational');
-                }
-            } else {
-                this.server = this.app.listen(config.port, () => {
-                    Logger.success(`Worker ${process.pid} running on port ${config.port} in ${config.environment} mode`);
-                });
-
-                this.setupGracefulShutdown();
+          if (cluster.isMaster) {
+            Logger.info(`Master ${process.pid} is running`);
+    
+            const numCPUs = os.cpus().length;
+            for (let i = 0; i < numCPUs; i++) {
+              cluster.fork();
             }
+    
+            cluster.on('exit', (worker, code, signal) => {
+              Logger.warn(`Worker ${worker.process.pid} died`);
+              cluster.fork();
+            });
+    
+            await this.initializeProxyManager();
+            
+            if (config.useCFClearanceScraper) {
+              Logger.info('Starting CF Clearance Scraper...');
+              await this.startCFClearanceScraper();
+              Logger.success('Server and CF Clearance Scraper are fully operational');
+            } else {
+              Logger.info('CF Clearance Scraper is disabled');
+              Logger.success('Server is fully operational');
+            }
+          } else {
+            this.server = this.app.listen(config.port, () => {
+              Logger.success(`Worker ${process.pid} running on port ${config.port} in ${config.environment} mode`);
+            });
+    
+            this.setupGracefulShutdown();
+          }
         } catch (error) {
-            Logger.error('Failed to start server:', error);
-            process.exit(1);
+          Logger.error('Failed to start server:', error);
+          process.exit(1);
         }
-    }    
+      }
 
     async initializeProxyManager() {
         try {
@@ -206,7 +206,7 @@ class Server {
 
         process.on('unhandledRejection', (reason, promise) => {
             Logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-        });
+          });
 
         process.on('uncaughtException', (error) => {
             Logger.error('Uncaught Exception:', error);
