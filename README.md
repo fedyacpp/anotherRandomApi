@@ -15,7 +15,7 @@ Currently five providers.
 
 - POST /v1/chat/completions: Generate a chat completion
 - GET /v1/models: Get information about available models
-- GET /test/chat: WORKS ONLY IN DEVELOPMENT MODE (CHANGE IT IN .ENV), fully functioning chat for provider testing
+- GET /test/chat: AVAILABLE ONLY IN DEVELOPMENT MODE (CHANGE IT IN .ENV), fully functioning chat for provider testing
 
 ## Adding New Providers
 
