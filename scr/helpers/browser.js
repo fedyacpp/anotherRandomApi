@@ -109,10 +109,8 @@ class BrowserManager {
         await this.page.goto(url, { waitUntil: 'networkidle2', timeout: this.options.timeout });
       }
       
-      // Ждем, пока кнопка станет доступной
       await this.page.waitForSelector('body > div.modal-mask > div > button', { visible: true, timeout: 10000 });
   
-      // Пытаемся нажать на кнопку несколько раз
       for (let i = 0; i < 3; i++) {
         try {
           await this.page.evaluate(() => {
@@ -134,7 +132,6 @@ class BrowserManager {
         }
       }
   
-      // Даем дополнительное время для загрузки после клика
       await this.page.waitForTimeout(2000);
       
       const client = await this.page.target().createCDPSession();

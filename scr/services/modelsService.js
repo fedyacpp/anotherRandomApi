@@ -9,32 +9,37 @@ class ModelsService {
 
   static getModels() {
     try {
-      const models = ProviderPool.getModelsInfo();
-      if (!models || models.length === 0) {
+      const chatModels = ProviderPool.getChatModelsInfo();
+      const imageModels = ProviderPool.getImageModelsInfo();
+
+      if ((!chatModels || chatModels.length === 0) && (!imageModels || imageModels.length === 0)) {
         throw new Error('No models available');
       }
       
-      const formattedModels = models.map(this.formatModel);
-      formattedModels.sort(this.compareModels);
+      const formattedChatModels = chatModels.map(model => this.formatModel(model, false));
+      const formattedImageModels = imageModels.map(model => this.formatModel(model, true));
 
-      return formattedModels;
+      const allModels = [...formattedChatModels, ...formattedImageModels];
+      allModels.sort(this.compareModels);
+
+      return allModels;
     } catch (error) {
       Logger.error(`Error fetching models: ${error.message}`);
       throw error;
     }
   }
 
-  static formatModel(model) {
+  static formatModel(model, isImage) {
     return {
       id: model.name,
-      object: "model",
+      object: isImage ? "image_model" : "model",
       description: model.description,
       owned_by: model.author || "unknown",
       unfiltered: model.unfiltered,
       permission: [],
       root: model.name,
       parent: null,
-      context_window: model.context_window || -1,
+      context_window: model.context_window || 'not applicable',
       reverseStatus: model.reverseStatus,
       providerCount: model.providerCount
     };
@@ -46,6 +51,10 @@ class ModelsService {
 
     if (orderA !== orderB) {
       return orderA - orderB;
+    }
+
+    if (a.object !== b.object) {
+      return a.object === "model" ? -1 : 1;
     }
 
     return a.id.localeCompare(b.id);

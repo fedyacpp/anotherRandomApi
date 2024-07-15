@@ -3,55 +3,70 @@ const path = require('path');
 const Logger = require('../helpers/logger');
 
 class ProviderPool {
-  static providers = [];
-  static modelProviderMap = new Map();
-  static modelsInfo = [];
+  static chatProviders = [];
+  static imageProviders = [];
+  static chatModelProviderMap = new Map();
+  static imageModelProviderMap = new Map();
+  static chatModelsInfo = [];
+  static imageModelsInfo = [];
 
   static initialize() {
     Logger.info('Initializing ProviderPool');
     this.loadProviders();
-    this.updateModelProviderMap();
+    this.updateModelProviderMaps();
     this.updateModelsInfo();
   }
 
   static loadProviders() {
     const providerDir = __dirname;
-    const providerFiles = fs.readdirSync(providerDir).filter(file => 
-      file.startsWith('someprovider') && file.endsWith('.js')
+    const providerFiles = fs.readdirSync(providerDir).filter(file =>
+      (file.startsWith('someprovider') || file.startsWith('imageprovider')) && file.endsWith('.js')
     );
-
     Logger.info(`Found ${providerFiles.length} provider files`);
 
-    this.providers = providerFiles.map(file => {
+    providerFiles.forEach(file => {
       const ProviderClass = require(path.join(providerDir, file));
-      return new ProviderClass();
+      const provider = new ProviderClass();
+      
+      if (file.startsWith('someprovider')) {
+        this.chatProviders.push(provider);
+      } else if (file.startsWith('imageprovider')) {
+        this.imageProviders.push(provider);
+      }
     });
 
-    Logger.info(`Loaded ${this.providers.length} providers`);
+    Logger.info(`Loaded ${this.chatProviders.length} chat providers and ${this.imageProviders.length} image providers`);
   }
 
-  static updateModelProviderMap() {
-    this.modelProviderMap.clear();
-    this.providers.forEach(provider => {
+  static updateModelProviderMaps() {
+    this.updateModelProviderMap(this.chatProviders, this.chatModelProviderMap);
+    this.updateModelProviderMap(this.imageProviders, this.imageModelProviderMap);
+  }
+
+  static updateModelProviderMap(providers, map) {
+    map.clear();
+    providers.forEach(provider => {
       if (!provider.modelInfo || !provider.modelInfo.modelId) {
         Logger.warn(`Provider ${provider.constructor.name} has invalid modelInfo`);
         return;
       }
-
       const modelId = provider.modelInfo.modelId;
       
-      if (!this.modelProviderMap.has(modelId)) {
-        this.modelProviderMap.set(modelId, new Set());
+      if (!map.has(modelId)) {
+        map.set(modelId, new Set());
       }
-      this.modelProviderMap.get(modelId).add(provider);
+      map.get(modelId).add(provider);
     });
-
-    Logger.info(`Updated model-provider map with ${this.modelProviderMap.size} models`);
   }
 
   static updateModelsInfo() {
+    this.chatModelsInfo = this.getModelsInfo(this.chatProviders);
+    this.imageModelsInfo = this.getModelsInfo(this.imageProviders);
+  }
+
+  static getModelsInfo(providers) {
     const modelsMap = new Map();
-    this.providers.forEach(provider => {
+    providers.forEach(provider => {
       if (!provider.modelInfo) {
         Logger.warn(`Provider ${provider.constructor.name} has no modelInfo`);
         return;
@@ -63,54 +78,53 @@ class ProviderPool {
         modelsMap.set(modelInfo.modelId, modelInfo);
       }
     });
-    this.modelsInfo = Array.from(modelsMap.values());
-
-    Logger.info(`Updated models info with ${this.modelsInfo.length} unique models`);
+    return Array.from(modelsMap.values());
   }
 
-  static getProviders(modelIdentifier) {
-    Logger.info(`Getting providers for model: ${modelIdentifier}`);
+  static getProviders(modelIdentifier, isImage = false) {
+    const type = isImage ? 'image' : 'chat';
+    Logger.info(`Getting ${type} providers for model: ${modelIdentifier}`);
     if (!modelIdentifier) {
       throw new Error('Model identifier is required');
     }
-  
-    if (this.modelProviderMap.has(modelIdentifier)) {
-      return Array.from(this.modelProviderMap.get(modelIdentifier));
+
+    const map = isImage ? this.imageModelProviderMap : this.chatModelProviderMap;
+    
+    if (map.has(modelIdentifier)) {
+      return Array.from(map.get(modelIdentifier));
     }
-  
-    Logger.error(`No provider found for model ${modelIdentifier}`);
-    throw new Error(`No provider found for model ${modelIdentifier}`);
+
+    Logger.error(`No ${type} provider found for model ${modelIdentifier}`);
+    throw new Error(`No ${type} provider found for model ${modelIdentifier}`);
   }
 
-  static async callModel(modelIdentifier, messages, temperature) {
-    const providers = this.getProviders(modelIdentifier);
+  static async callModel(modelIdentifier, isImage = false, ...args) {
+    const providers = this.getProviders(modelIdentifier, isImage);
     const randomProvider = providers[Math.floor(Math.random() * providers.length)];
     
     try {
-      const result = await randomProvider.generateCompletion(messages, temperature);
-      Logger.info(`Model called: ${result.model}`);
+      let result;
+      if (isImage) {
+        result = await randomProvider.generateImage(...args);
+      } else {
+        result = await randomProvider.generateCompletion(...args);
+      }
+      Logger.info(`${isImage ? 'Image' : 'Chat'} model called: ${modelIdentifier}`);
       return result;
     } catch (error) {
-      Logger.error(`Error calling model ${modelIdentifier}: ${error.message}`);
+      Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier}: ${error.message}`);
       throw error;
     }
   }
 
-  static getModelsInfo() {
-    Logger.info('Fetching models information');
-    if (this.providers.length === 0) {
-      throw new Error('No providers available');
-    }
-    
-    return this.modelsInfo;
+  static getChatModelsInfo() {
+    return this.chatModelsInfo;
   }
 
-  static getUniqueProviderCount(modelIdentifier) {
-    const providers = this.getProviders(modelIdentifier);
-    return providers.length;
+  static getImageModelsInfo() {
+    return this.imageModelsInfo;
   }
 }
 
 ProviderPool.initialize();
-
 module.exports = ProviderPool;

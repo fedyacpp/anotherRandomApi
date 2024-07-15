@@ -78,10 +78,27 @@ class ProxyManager {
         Logger.info(`Found ${this.proxyList.length} working proxies`);
     }
 
+    startPeriodicUpdate(interval = 1000 * 60 * 3) {
+        this.updateInterval = setInterval(() => {
+            this.refreshProxyList().catch(error => {
+                Logger.error(`Error in periodic proxy update: ${error.message}`);
+            });
+        }, interval);
+    }
+
+    stopPeriodicUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+            Logger.info('Stopped periodic proxy updates');
+        }
+    }
+
     async initialize() {
         try {
             Logger.info('Initializing proxy manager...');
             await this.refreshProxyList();
+            this.startPeriodicUpdate();
             Logger.info('Proxy manager initialized successfully');
         } catch (error) {
             Logger.error(`Failed to initialize proxy manager: ${error.message}`);

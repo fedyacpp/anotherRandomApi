@@ -1,6 +1,7 @@
 const express = require('express');
 const chatCompletionsRouter = require('./chatCompletions');
 const modelsRouter = require('./models');
+const imageGenerationsRouter = require('./imageGenerations');
 const config = require('../config');
 const helmet = require('helmet');
 
@@ -10,6 +11,7 @@ router.use(helmet());
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.use('/models', modelsRouter);
+router.use('/image/generations', imageGenerationsRouter);
 
 if (config.environment !== 'development') {
     router.use((req, res, next) => {

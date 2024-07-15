@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chat Test Environment</title>
+    <title>AI Chat and Image Generation Test Environment</title>
     <link rel="stylesheet" href="styles/chat.css">
 </head>
 <body>
     <div class="container">
-        <h1>AI Chat Test Environment</h1>
+        <h1>AI Chat and Image Generation Test Environment</h1>
         <div class="chat-container">
             <div id="chat-messages"></div>
             <div class="input-container">
@@ -22,24 +22,38 @@
                     <label for="model-select">Model:</label>
                     <select id="model-select"></select>
                 </div>
-                <div class="setting">
+                <div class="setting chat-setting">
                     <label for="temperature">Temperature:</label>
                     <input type="number" id="temperature" min="0" max="1" step="0.1" value="0.7">
                 </div>
-                <div class="setting">
+                <div class="setting chat-setting">
                     <label for="streaming">Streaming:</label>
                     <input type="checkbox" id="streaming" checked>
                 </div>
                 <button id="clear-chat">Clear Chat</button>
             </div>
-            <div class="setting-row">
+            <div class="setting-row chat-setting">
                 <div class="setting full-width">
                     <label for="system-prompt">System Prompt:</label>
                     <textarea id="system-prompt" placeholder="Enter system prompt here..."></textarea>
                 </div>
             </div>
+            <div class="setting-row image-setting" style="display: none;">
+                <div class="setting">
+                    <label for="image-size">Image Size:</label>
+                    <select id="image-size">
+                        <option value="256x256">256x256</option>
+                        <option value="512x512" selected>512x512</option>
+                        <option value="1024x1024">1024x1024</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label for="image-count">Number of Images:</label>
+                    <input type="number" id="image-count" min="1" max="4" value="1">
+                </div>
+            </div>
         </div>
     </div>
-    <script src="js/chat.js"></script>
+    <script src="js\chat.js"></script>
 </body>
 </html>

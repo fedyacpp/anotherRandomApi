@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const cluster = require('cluster');
 const os = require('os');
+const http = require('http');
 
 const config = require('../config');
 const routes = require('../routes');
@@ -13,7 +14,7 @@ const errorMiddleware = require('../middleware/errorMiddleware');
 const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const timeoutMiddleware = require('../middleware/timeoutMiddleware');
 const Logger = require('../helpers/logger');
-const proxyManager = require('../helpers/proxyManager');
+const ProxyManager = require('../helpers/proxyManager');
 
 class Server {
     constructor() {
@@ -79,41 +80,88 @@ class Server {
 
     async start() {
         try {
-          if (cluster.isMaster) {
-            Logger.info(`Master ${process.pid} is running`);
-    
-            const numCPUs = os.cpus().length;
-            for (let i = 0; i < numCPUs; i++) {
-              cluster.fork();
-            }
-    
-            cluster.on('exit', (worker, code, signal) => {
-              Logger.warn(`Worker ${worker.process.pid} died`);
-              cluster.fork();
-            });
-    
-            await this.initializeProxyManager();
-            
-            if (config.useCFClearanceScraper) {
-              Logger.info('Starting CF Clearance Scraper...');
-              await this.startCFClearanceScraper();
-              Logger.success('Server and CF Clearance Scraper are fully operational');
+            if (cluster.isMaster) {
+                Logger.info(`Master ${process.pid} is running`);
+
+                const numCPUs = os.cpus().length;
+                for (let i = 0; i < numCPUs; i++) {
+                    cluster.fork();
+                }
+
+                cluster.on('exit', (worker, code, signal) => {
+                    Logger.warn(`Worker ${worker.process.pid} died`);
+                    cluster.fork();
+                });
+
+                await ProxyManager.initialize();
+                
+                if (config.useCFClearanceScraper) {
+                    Logger.info('Starting CF Clearance Scraper...');
+                    await this.startCFClearanceScraper();
+                    Logger.success('Server and CF Clearance Scraper are fully operational');
+                } else {
+                    Logger.info('CF Clearance Scraper is disabled');
+                    Logger.success('Server is fully operational');
+                }
             } else {
-              Logger.info('CF Clearance Scraper is disabled');
-              Logger.success('Server is fully operational');
+                const startServer = (port) => {
+                    this.server = this.app.listen(port, () => {
+                        Logger.success(`Worker ${process.pid} running on port ${port} in ${config.environment} mode`);
+                    }).on('error', (err) => {
+                        if (err.code === 'EADDRINUSE') {
+                            Logger.warn(`Port ${port} is in use, trying ${port + 1}`);
+                            startServer(port + 1);
+                        } else {
+                            throw err;
+                        }
+                    });
+                };
+
+                startServer(config.port);
+                this.setupGracefulShutdown();
             }
-          } else {
-            this.server = this.app.listen(config.port, () => {
-              Logger.success(`Worker ${process.pid} running on port ${config.port} in ${config.environment} mode`);
-            });
-    
-            this.setupGracefulShutdown();
-          }
         } catch (error) {
-          Logger.error('Failed to start server:', error);
-          process.exit(1);
+            Logger.error('Failed to start server:', error);
+            process.exit(1);
         }
-      }
+    }
+
+    setupGracefulShutdown() {
+        const gracefulShutdown = () => {
+            Logger.info('Received kill signal, shutting down gracefully');
+            if (ProxyManager.isInitialized()) {
+                ProxyManager.stopPeriodicUpdate();
+            }
+            if (this.cfClearanceScraperProcess && config.useCFClearanceScraper) {
+                this.cfClearanceScraperProcess.kill();
+            }
+            if (this.server) {
+                this.server.close(() => {
+                    Logger.info('Closed out remaining connections');
+                    process.exit(0);
+                });
+
+                setTimeout(() => {
+                    Logger.error('Could not close connections in time, forcefully shutting down');
+                    process.exit(1);
+                }, 10000);
+            } else {
+                process.exit(0);
+            }
+        };
+
+        process.on('SIGTERM', gracefulShutdown);
+        process.on('SIGINT', gracefulShutdown);
+
+        process.on('unhandledRejection', (reason, promise) => {
+            Logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+        });
+
+        process.on('uncaughtException', (error) => {
+            Logger.error('Uncaught Exception:', error);
+            gracefulShutdown();
+        });
+    }
 
     async initializeProxyManager() {
         try {
@@ -179,38 +227,6 @@ class Server {
                 Logger.error('Error in startCFClearanceScraper:', error);
                 reject(error);
             }
-        });
-    }
-
-    setupGracefulShutdown() {
-        const gracefulShutdown = () => {
-            Logger.info('Received kill signal, shutting down gracefully');
-            if (proxyManager.isInitialized()) {
-                proxyManager.stopPeriodicUpdate();
-            }
-            if (this.cfClearanceScraperProcess && config.useCFClearanceScraper) {
-                this.cfClearanceScraperProcess.kill();
-            }
-            this.server.close(() => {
-                Logger.info('Closed out remaining connections');
-                process.exit(0);
-            });
-
-            setTimeout(() => {
-                Logger.error('Could not close connections in time, forcefully shutting down');
-                process.exit(1);
-            }, 10000);
-        };
-        process.on('SIGTERM', gracefulShutdown);
-        process.on('SIGINT', gracefulShutdown);
-
-        process.on('unhandledRejection', (reason, promise) => {
-            Logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-          });
-
-        process.on('uncaughtException', (error) => {
-            Logger.error('Uncaught Exception:', error);
-            gracefulShutdown();
         });
     }
 }
