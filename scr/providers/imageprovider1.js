@@ -5,7 +5,7 @@ class ProdiaImageProvider extends ImageProviderInterface {
   constructor() {
     super({
       modelId: "Prodia",
-      name: "prodia",
+      name: "Prodia",
       description: "Prodia image generation API",
       author: "Prodia",
       unfiltered: true,

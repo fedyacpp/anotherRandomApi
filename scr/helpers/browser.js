@@ -44,6 +44,8 @@ class BrowserManager {
       this.page.on('error', error => Logger.error('Page error:', error));
       this.page.on('pageerror', error => Logger.error('Page error:', error));
 
+      this.cookies = await this.getPageCookies(this.options.url);
+
     } catch (error) {
       Logger.error('Error initializing browser:', error);
       throw error;
@@ -109,30 +111,7 @@ class BrowserManager {
         await this.page.goto(url, { waitUntil: 'networkidle2', timeout: this.options.timeout });
       }
       
-      await this.page.waitForSelector('body > div.modal-mask > div > button', { visible: true, timeout: 10000 });
-  
-      for (let i = 0; i < 3; i++) {
-        try {
-          await this.page.evaluate(() => {
-            const button = document.querySelector('body > div.modal-mask > div > button');
-            if (button) {
-              button.click();
-            } else {
-              throw new Error('Button not found');
-            }
-          });
-          Logger.info('Clicked the button successfully');
-          break;
-        } catch (clickError) {
-          Logger.warn(`Failed to click button (attempt ${i + 1}):`, clickError.message);
-          if (i === 2) {
-            throw new Error('Failed to click button after multiple attempts');
-          }
-          await this.page.waitForTimeout(1000);
-        }
-      }
-  
-      await this.page.waitForTimeout(2000);
+      await this.page.waitForSelector('body', { visible: true, timeout: 10000 });
       
       const client = await this.page.target().createCDPSession();
       const {cookies} = await client.send('Network.getAllCookies');

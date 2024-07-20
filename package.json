@@ -10,6 +10,7 @@
     "base-64": "^1.0.0",
     "chalk": "^4.1.2",
     "cheerio": "^1.0.0-rc.12",
+    "cloudscraper": "^4.6.0",
     "dotenv": "^16.4.5",
     "eventsource": "^2.0.2",
     "execjs": "^1.0.7",
