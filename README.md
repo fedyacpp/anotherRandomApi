@@ -1,6 +1,6 @@
 # Chat Completion API
 
-Currently five providers.
+(At least perplexity labs ain't working, i think won't fix 'em in next few days, 'cause im currently messing with fl studio) Currently five providers.
 
 ## Setup
 
