@@ -51,9 +51,52 @@
                     <label for="image-count">Number of Images:</label>
                     <input type="number" id="image-count" min="1" max="4" value="1">
                 </div>
+                <div class="setting">
+                    <label for="quality">Quality:</label>
+                    <select id="quality">
+                        <option value="standard">Standard</option>
+                        <option value="hd">HD</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label for="style">Style:</label>
+                    <input type="text" id="style" placeholder="Enter style">
+                </div>
+            </div>
+            <div class="setting-row image-setting" style="display: none;">
+                <div class="setting full-width">
+                    <label for="negative-prompt">Negative Prompt:</label>
+                    <textarea id="negative-prompt" placeholder="Enter negative prompt here..."></textarea>
+                </div>
+            </div>
+            <div class="setting-row image-setting" style="display: none;">
+                <div class="setting">
+                    <label for="seed">Seed:</label>
+                    <input type="number" id="seed" min="0" step="1" placeholder="Random">
+                </div>
+                <div class="setting">
+                    <label for="steps">Steps:</label>
+                    <input type="number" id="steps" min="1" max="150" value="50">
+                </div>
+                <div class="setting">
+                    <label for="cfg-scale">CFG Scale:</label>
+                    <input type="number" id="cfg-scale" min="0" max="35" step="0.1" value="7">
+                </div>
+                <div class="setting">
+                    <label for="sampler">Sampler:</label>
+                    <select id="sampler">
+                        <option value="euler_a">Euler a</option>
+                        <option value="euler">Euler</option>
+                        <option value="heun">Heun</option>
+                        <option value="dpm2">DPM2</option>
+                        <option value="dpm2_ancestral">DPM2 Ancestral</option>
+                        <option value="lms">LMS</option>
+                        <option value="ddim">DDIM</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
-    <script src="js\chat.js"></script>
+    <script src="js/chat.js"></script>
 </body>
 </html>

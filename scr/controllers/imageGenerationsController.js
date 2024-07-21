@@ -43,34 +43,21 @@ exports.generateImage = async (req, res, next) => {
       throw new ValidationError('Prompt is required');
     }
 
-    Logger.info('ImageGenerationService: Starting image generation', {
-      model,
-      prompt,
-      size,
-      n,
-      quality,
-      style,
-      negative_prompt,
-      seed,
-      steps,
-      cfg_scale,
-      sampler,
-      extras
-    });
-
     const images = await ImageGenerationService.generateImage(
       model, 
       prompt,
       size,
       n,
-      quality,
-      style,
-      negative_prompt,
-      seed,
-      steps,
-      cfg_scale,
-      sampler,
-      extras
+      {
+        quality,
+        style,
+        negative_prompt,
+        seed,
+        steps,
+        cfg_scale,
+        sampler,
+        ...extras
+      }
     );
 
     if (images.length === 0) {

@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const data = await response.json();
             populateModelSelect(data.data);
+            modelSelect.addEventListener('change', updateUIForModelType);
         } catch (error) {
             console.error('Error loading models:', error);
             addMessage('error', 'Failed to load AI models. Please try refreshing the page.');
@@ -75,27 +76,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function generateTextResponse(model, message) {
-        const temperature = parseFloat(temperatureInput.value);
-        const streaming = streamingCheckbox.checked;
-        const systemPromptText = systemPrompt.value.trim();
-
-        let messages = [...messageHistory];
-        if (systemPromptText) {
-            messages.unshift({ role: 'system', content: systemPromptText });
-        }
-
+    async function generateImage(prompt) {
+        const size = imageSizeSelect.value;
+        const n = parseInt(imageCountInput.value);
+        const quality = document.getElementById('quality').value;
+        const style = document.getElementById('style').value;
+        const negativePrompt = document.getElementById('negative-prompt').value;
+        const seed = document.getElementById('seed').value ? parseInt(document.getElementById('seed').value) : null;
+        const steps = parseInt(document.getElementById('steps').value);
+        const cfgScale = parseFloat(document.getElementById('cfg-scale').value);
+        const sampler = document.getElementById('sampler').value;
+    
         try {
-            const response = await fetch('http://localhost:8000/v1/chat/completions', {
+            const response = await fetch('http://localhost:8000/v1/images/generations', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: model,
-                    messages: messages,
-                    temperature: temperature,
-                    stream: streaming
+                    model: modelSelect.value,
+                    prompt: prompt,
+                    n: n,
+                    size: size,
+                    quality: quality,
+                    style: style,
+                    negative_prompt: negativePrompt,
+                    seed: seed,
+                    steps: steps,
+                    cfg_scale: cfgScale,
+                    sampler: sampler
                 }),
             });
 
