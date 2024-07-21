@@ -11,7 +11,7 @@ router.use(helmet());
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.use('/models', modelsRouter);
-router.use('/image/generations', imageGenerationsRouter);
+router.use('/images/generations', imageGenerationsRouter);
 
 if (config.environment !== 'development') {
     router.use((req, res, next) => {

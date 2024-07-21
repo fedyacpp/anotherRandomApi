@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const streamingCheckbox = document.getElementById('streaming');
     const systemPrompt = document.getElementById('system-prompt');
     const clearChatButton = document.getElementById('clear-chat');
+    const imageSizeSelect = document.getElementById('image-size');
+    const imageCountInput = document.getElementById('image-count');
 
     let messageHistory = [];
 
@@ -41,8 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const option = document.createElement('option');
             option.value = model.id;
             option.textContent = model.id;
+            option.dataset.type = model.object;
             modelSelect.appendChild(option);
         });
+        updateUIForModelType();
+    }
+
+    function updateUIForModelType() {
+        const selectedModel = modelSelect.options[modelSelect.selectedIndex];
+        const isImageModel = selectedModel.dataset.type === 'image_model';
+        
+        document.querySelectorAll('.chat-setting').forEach(el => el.style.display = isImageModel ? 'none' : 'block');
+        document.querySelectorAll('.image-setting').forEach(el => el.style.display = isImageModel ? 'block' : 'none');
     }
 
     async function sendMessage() {
@@ -53,7 +65,17 @@ document.addEventListener('DOMContentLoaded', () => {
         messageHistory.push({ role: 'user', content: message });
         userInput.value = '';
 
-        const model = modelSelect.value;
+        const selectedModel = modelSelect.options[modelSelect.selectedIndex];
+        const isImageModel = selectedModel.dataset.type === 'image_model';
+
+        if (isImageModel) {
+            await generateImage(message);
+        } else {
+            await generateTextResponse(selectedModel.value, message);
+        }
+    }
+
+    async function generateTextResponse(model, message) {
         const temperature = parseFloat(temperatureInput.value);
         const streaming = streamingCheckbox.checked;
         const systemPromptText = systemPrompt.value.trim();
@@ -123,6 +145,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function generateImage(prompt) {
+        const size = imageSizeSelect.value;
+        const n = parseInt(imageCountInput.value);
+    
+        try {
+            const response = await fetch('http://localhost:8000/v1/images/generations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: modelSelect.value,
+                    prompt: prompt,
+                    n: n,
+                    size: size
+                }),
+            });
+    
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+    
+            const contentType = response.headers.get('content-type');
+    
+            if (contentType && contentType.includes('image/')) {
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                addImageMessage('ai', imageUrl);
+            } else if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                if (data.data && Array.isArray(data.data)) {
+                    data.data.forEach(imageData => {
+                        if (typeof imageData === 'string') {
+                            if (imageData.startsWith('http')) {
+                                addImageMessage('ai', imageData);
+                            } else {
+                                addImageMessage('ai', `data:image/png;base64,${imageData}`);
+                            }
+                        } else {
+                            console.error('Unexpected image data format:', imageData);
+                        }
+                    });
+                } else {
+                    console.error('Unexpected response format:', data);
+                    throw new Error('Unexpected response format');
+                }
+            } else {
+                throw new Error('Unexpected content type: ' + contentType);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            addMessage('error', 'An error occurred while generating the image: ' + error.message);
+        }
+    }
+
+    function addImageMessage(sender, imageUrl) {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', sender);
+        
+        const textElement = document.createElement('p');
+        textElement.textContent = 'Generated image:';
+        messageElement.appendChild(textElement);
+        
+        const imageContainer = document.createElement('div');
+        imageContainer.classList.add('image-container');
+        
+        const image = document.createElement('img');
+        image.src = imageUrl;
+        image.alt = 'Generated image';
+        
+        image.onerror = function() {
+            console.error('Failed to load image:', imageUrl);
+            this.alt = 'Failed to load image';
+            this.style.display = 'none';
+            const errorText = document.createElement('p');
+            errorText.textContent = 'Failed to load image';
+            errorText.style.color = 'red';
+            imageContainer.appendChild(errorText);
+        };
+        
+        imageContainer.appendChild(image);
+        messageElement.appendChild(imageContainer);
+        
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
     function addMessage(sender, content) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', sender);

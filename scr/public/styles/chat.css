@@ -27,7 +27,7 @@ h1 {
 }
 
 #chat-messages {
-    height: 400px;
+    height: 600px;
     overflow-y: auto;
     padding: 20px;
 }
@@ -36,8 +36,14 @@ h1 {
     margin-bottom: 15px;
     padding: 10px 15px;
     border-radius: 18px;
-    max-width: 80%;
+    max-width: 90%;
     line-height: 1.4;
+}
+
+.message img {
+    max-width: 100%;
+    border-radius: 5px;
+    margin-top: 10px;
 }
 
 .user {
@@ -273,4 +279,11 @@ h1 {
 
 .image-setting {
     display: none;
+}
+
+.image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 10px;
 }

@@ -26,7 +26,21 @@ class Server {
     }
 
     configureMiddleware() {
-        this.app.use(helmet());
+        this.app.use(helmet({
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                    styleSrc: ["'self'", "'unsafe-inline'"],
+                    imgSrc: ["'self'", "data:", "blob:", "https://images.prodia.xyz"],
+                    connectSrc: ["'self'", "https://api.prodia.com", "https://images.prodia.xyz"],
+                    fontSrc: ["'self'"],
+                    objectSrc: ["'none'"],
+                    mediaSrc: ["'self'"],
+                    frameSrc: ["'none'"],
+                }
+            }
+        }));
         this.app.disable('x-powered-by');
 
         const limiter = rateLimit({
