@@ -12,9 +12,18 @@ class ProviderPool {
 
   static initialize() {
     Logger.info('Initializing ProviderPool');
-    this.loadProviders();
-    this.updateModelProviderMaps();
-    this.updateModelsInfo();
+    try {
+      this.loadProviders();
+      this.updateModelProviderMaps();
+      this.updateModelsInfo();
+      Logger.info('ProviderPool initialized successfully');
+    } catch (error) {
+      Logger.error('Error initializing ProviderPool:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   static loadProviders() {
@@ -25,13 +34,21 @@ class ProviderPool {
     Logger.info(`Found ${providerFiles.length} provider files`);
 
     providerFiles.forEach(file => {
-      const ProviderClass = require(path.join(providerDir, file));
-      const provider = new ProviderClass();
-      
-      if (file.startsWith('someprovider')) {
-        this.chatProviders.push(provider);
-      } else if (file.startsWith('imageprovider')) {
-        this.imageProviders.push(provider);
+      try {
+        const ProviderClass = require(path.join(providerDir, file));
+        const provider = new ProviderClass();
+        
+        if (file.startsWith('someprovider')) {
+          this.chatProviders.push(provider);
+        } else if (file.startsWith('imageprovider')) {
+          this.imageProviders.push(provider);
+        }
+        Logger.info(`Loaded provider: ${provider.constructor.name}`);
+      } catch (error) {
+        Logger.error(`Error loading provider from file ${file}:`, {
+          error: error.message,
+          stack: error.stack
+        });
       }
     });
 
@@ -84,24 +101,39 @@ class ProviderPool {
   static getProviders(modelIdentifier, isImage = false) {
     const type = isImage ? 'image' : 'chat';
     Logger.info(`Getting ${type} providers for model: ${modelIdentifier}`);
+    
     if (!modelIdentifier) {
-      throw new Error('Model identifier is required');
+      const error = new Error('Model identifier is required');
+      Logger.error(error.message);
+      throw error;
     }
 
     const map = isImage ? this.imageModelProviderMap : this.chatModelProviderMap;
     
     if (map.has(modelIdentifier)) {
-      return Array.from(map.get(modelIdentifier));
+      const providers = Array.from(map.get(modelIdentifier));
+      Logger.info(`Found ${providers.length} providers for model: ${modelIdentifier}`);
+      return providers;
     }
 
-    Logger.error(`No ${type} provider found for model ${modelIdentifier}`);
-    throw new Error(`No ${type} provider found for model ${modelIdentifier}`);
+    const error = new Error(`No ${type} provider found for model ${modelIdentifier}`);
+    Logger.error(error.message);
+    throw error;
   }
 
   static async callModel(modelIdentifier, isImage = false, ...args) {
-    const providers = this.getProviders(modelIdentifier, isImage);
-    const randomProvider = providers[Math.floor(Math.random() * providers.length)];
+    Logger.info(`Attempting to call ${isImage ? 'image' : 'chat'} model: ${modelIdentifier}`);
     
+    const providers = this.getProviders(modelIdentifier, isImage);
+    if (providers.length === 0) {
+      const error = new Error(`No providers available for model: ${modelIdentifier}`);
+      Logger.error(error.message);
+      throw error;
+    }
+
+    const randomProvider = providers[Math.floor(Math.random() * providers.length)];
+    Logger.info(`Selected provider: ${randomProvider.constructor.name}`);
+
     try {
       let result;
       if (isImage) {
@@ -109,10 +141,22 @@ class ProviderPool {
       } else {
         result = await randomProvider.generateCompletion(...args);
       }
-      Logger.info(`${isImage ? 'Image' : 'Chat'} model called: ${modelIdentifier}`);
+
+      if (!result) {
+        const error = new Error(`No result generated for model: ${modelIdentifier}`);
+        Logger.warn(error.message);
+        throw error;
+      }
+
+      Logger.info(`Successfully called ${isImage ? 'image' : 'chat'} model: ${modelIdentifier}`);
       return result;
     } catch (error) {
-      Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier}: ${error.message}`);
+      Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier}:`, {
+        error: error.message,
+        stack: error.stack,
+        provider: randomProvider.constructor.name,
+        args: args
+      });
       throw error;
     }
   }

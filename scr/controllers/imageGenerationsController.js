@@ -5,6 +5,7 @@ const { ValidationError } = require('../utils/errors');
 exports.generateImage = async (req, res, next) => {
   const startTime = Date.now();
   try {
+
     const { 
       model, 
       prompt,
@@ -60,7 +61,7 @@ exports.generateImage = async (req, res, next) => {
       }
     );
 
-    if (images.length === 0) {
+    if (!images || images.length === 0) {
       throw new Error('No images generated');
     }
 
@@ -68,7 +69,8 @@ exports.generateImage = async (req, res, next) => {
       created: Math.floor(Date.now() / 1000), 
       data: images,
       model,
-      prompt
+      prompt,
+      negative_prompt
     });
 
   } catch (error) {
@@ -76,6 +78,7 @@ exports.generateImage = async (req, res, next) => {
       error: error.message, 
       stack: error.stack, 
       ip: req.ip, 
+      userAgent: req.get('User-Agent'),
       duration: Date.now() - startTime 
     });
     
