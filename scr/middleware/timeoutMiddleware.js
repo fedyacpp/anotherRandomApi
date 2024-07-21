@@ -31,6 +31,10 @@ const timeoutMiddleware = (defaultTimeout) => (req, res, next) => {
       });
     }
   });
-}
+
+  res.setHeader('X-Timeout-Value', safeTimeout);
+
+  next();
+};
 
 module.exports = timeoutMiddleware;
