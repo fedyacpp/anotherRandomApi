@@ -5,12 +5,12 @@ const crypto = require('crypto');
 const ImageProviderInterface = require('./ImageProviderInterface');
 const Logger = require('../helpers/logger');
 
-class StableDiffusion21Provider extends ImageProviderInterface {
+class ImageProvider4 extends ImageProviderInterface {
   constructor() {
     super({
       modelId: "stable-diffusion-2-1",
-      name: "Stable Diffusion 2.1",
-      description: "Stable Diffusion 2.1 image generation model",
+      name: "stable-diffusion-2-1",
+      description: "Filtered Stable Diffusion 2.1 image generation model",
       author: "Stability AI",
       unfiltered: false,
       reverseStatus: "Stable"
@@ -48,7 +48,7 @@ class StableDiffusion21Provider extends ImageProviderInterface {
 
       ws.on('message', async (data) => {
         const message = JSON.parse(data);
-        Logger.info('Received message:', { message });
+        Logger.info('Received message');
 
         if (message.msg === 'send_hash') {
           Logger.info('Sending session hash', { sessionHash });
@@ -146,4 +146,4 @@ class StableDiffusion21Provider extends ImageProviderInterface {
   }
 }
 
-module.exports = StableDiffusion21Provider;
+module.exports = ImageProvider4;

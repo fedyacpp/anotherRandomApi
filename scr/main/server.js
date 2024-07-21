@@ -32,7 +32,7 @@ class Server {
                     defaultSrc: ["'self'"],
                     scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
                     styleSrc: ["'self'", "'unsafe-inline'"],
-                    imgSrc: ["'self'", "data:", "blob:", "https://images.prodia.xyz"],
+                    imgSrc: ["'self'", "data:", "blob:", "https://images.prodia.xyz", "https://i.ibb.co"],
                     connectSrc: ["'self'", "https://api.prodia.com", "https://images.prodia.xyz"],
                     fontSrc: ["'self'"],
                     objectSrc: ["'none'"],
