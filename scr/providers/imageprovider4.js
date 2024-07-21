@@ -8,8 +8,8 @@ const Logger = require('../helpers/logger');
 class ImageProvider4 extends ImageProviderInterface {
   constructor() {
     super({
-      modelId: "stable-diffusion-2-1",
-      name: "stable-diffusion-2-1",
+      modelId: "stable-diffusion-2.1",
+      name: "stable-diffusion-2.1",
       description: "Filtered Stable Diffusion 2.1 image generation model",
       author: "Stability AI",
       unfiltered: false,
