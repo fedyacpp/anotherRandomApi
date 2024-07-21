@@ -14,6 +14,7 @@
 ## API Endpoints
 
 - POST /v1/chat/completions: Generate a chat completion
+- POST /v1/images/generations: Generate an image
 - GET /v1/models: Get information about available models
 - GET /test/chat: AVAILABLE ONLY IN DEVELOPMENT MODE (CHANGE IT IN .ENV), fully functioning chat for provider testing
 
