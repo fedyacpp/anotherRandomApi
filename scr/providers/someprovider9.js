@@ -21,8 +21,8 @@ class Provider9 extends ProviderInterface {
         super();
         this.baseUrl = "https://liaobots.work";
         this.modelInfo = {
-            modelId: "gpt-4",
-            name: "gpt-4",
+            modelId: "gpt-4-0613",
+            name: "gpt-4-0613",
             description: "A groundbreaking language model that set new standards for AI capabilities and problem-solving",
             context_window: 8192,
             author: "OpenAI",

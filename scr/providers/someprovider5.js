@@ -21,8 +21,8 @@ class Provider5 extends ProviderInterface {
         super();
         this.baseUrl = "https://liaobots.work";
         this.modelInfo = {
-            modelId: "gemini-1.5-pro",
-            name: "gemini-1.5-pro",
+            modelId: "gemini-1.5-pro-latest",
+            name: "gemini-1.5-pro-latest",
             description: "Google's advanced model, offering a balance of capabilities across diverse tasks",
             context_window: 1000000,
             author: "Google",

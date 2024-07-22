@@ -21,8 +21,8 @@ class Provider8 extends ProviderInterface {
         super();
         this.baseUrl = "https://liaobots.work";
         this.modelInfo = {
-            modelId: "claude-3-haiku",
-            name: "claude-3-haiku",
+            modelId: "claude-3-haiku-20240307",
+            name: "claude-3-haiku-20240307",
             description: "A streamlined AI model designed for quick responses and efficient processing of shorter queries",
             context_window: 200000,
             author: "Anthropic",

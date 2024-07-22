@@ -21,8 +21,8 @@ class Provider6 extends ProviderInterface {
         super();
         this.baseUrl = "https://liaobots.work";
         this.modelInfo = {
-            modelId: "gemini-1.5-flash",
-            name: "gemini-1.5-flash",
+            modelId: "gemini-1.5-flash-latest",
+            name: "gemini-1.5-flash-latest",
             description: "An optimized version of Gemini, prioritizing speed for rapid response scenarios",
             context_window: 1000000,
             author: "Google",
