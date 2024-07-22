@@ -49,7 +49,7 @@ class Server {
             skip: (req) => req.url === '/v1/models' && req.method === 'GET'
         });
 
-        this.app.use(timeoutMiddleware(30000));
+        this.app.use(timeoutMiddleware(120000));
 
         this.app.use((req, res, next) => {
             if (req.url === '/v1/models' && req.method === 'GET') {

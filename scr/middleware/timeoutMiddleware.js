@@ -8,7 +8,7 @@ const timeoutMiddleware = (defaultTimeout) => (req, res, next) => {
     : defaultTimeout;
 
   const minTimeout = 1000;
-  const maxTimeout = 60000;
+  const maxTimeout = 120000;
   const safeTimeout = Math.max(minTimeout, Math.min(timeout, maxTimeout));
 
   res.setTimeout(safeTimeout, () => {

@@ -154,58 +154,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function generateImage(prompt) {
-        const size = imageSizeSelect.value;
-        const n = parseInt(imageCountInput.value);
+    async function generateTextResponse(model, message) {
+        const temperature = parseFloat(temperatureInput.value);
+        const streaming = streamingCheckbox.checked;
+        const systemMessage = systemPrompt.value.trim();
+    
+        const messages = [
+            ...(systemMessage ? [{ role: 'system', content: systemMessage }] : []),
+            ...messageHistory
+        ];
     
         try {
-            const response = await fetch('http://localhost:8000/v1/images/generations', {
+            const response = await fetch('http://localhost:8000/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: modelSelect.value,
-                    prompt: prompt,
-                    n: n,
-                    size: size
+                    model: model,
+                    messages: messages,
+                    temperature: temperature,
+                    stream: streaming,
                 }),
             });
     
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error('API request failed');
             }
     
-            const contentType = response.headers.get('content-type');
+            if (streaming) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let aiMessage = '';
     
-            if (contentType && contentType.includes('image/')) {
-                const blob = await response.blob();
-                const imageUrl = URL.createObjectURL(blob);
-                addImageMessage('ai', imageUrl);
-            } else if (contentType && contentType.includes('application/json')) {
-                const data = await response.json();
-                if (data.data && Array.isArray(data.data)) {
-                    data.data.forEach(imageData => {
-                        if (typeof imageData === 'string') {
-                            if (imageData.startsWith('http')) {
-                                addImageMessage('ai', imageData);
-                            } else {
-                                addImageMessage('ai', `data:image/png;base64,${imageData}`);
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const content = line.slice(6);
+                            if (content.trim() === '[DONE]') {
+                                break;
                             }
-                        } else {
-                            console.error('Unexpected image data format:', imageData);
+                            try {
+                                const data = JSON.parse(content);
+                                if (data.choices && data.choices[0].delta.content) {
+                                    aiMessage += data.choices[0].delta.content;
+                                    updateAIMessage(aiMessage);
+                                }
+                            } catch (error) {
+                                console.error('Error parsing JSON:', error);
+                            }
                         }
-                    });
-                } else {
-                    console.error('Unexpected response format:', data);
-                    throw new Error('Unexpected response format');
+                    }
                 }
+                messageHistory.push({ role: 'assistant', content: aiMessage });
             } else {
-                throw new Error('Unexpected content type: ' + contentType);
+                const data = await response.json();
+                const aiMessage = data.choices[0].message.content;
+                addMessage('ai', aiMessage);
+                messageHistory.push({ role: 'assistant', content: aiMessage });
             }
         } catch (error) {
             console.error('Error:', error);
-            addMessage('error', 'An error occurred while generating the image: ' + error.message);
+            addMessage('error', 'An error occurred while fetching the response.');
         }
     }
 
