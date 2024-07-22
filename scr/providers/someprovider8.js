@@ -167,7 +167,7 @@ class Provider8 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "You are a helpful assistant.",
+                    prompt: "",
                     temperature,
                     max_tokens
                 }, true);
@@ -203,7 +203,7 @@ class Provider8 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "You are a helpful assistant.",
+                    prompt: "",
                     temperature,
                     max_tokens
                 }, true);

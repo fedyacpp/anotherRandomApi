@@ -21,8 +21,8 @@ class Provider3 extends ProviderInterface {
         super();
         this.baseUrl = "https://liaobots.work";
         this.modelInfo = {
-            modelId: "claude-3-5-sonnet-20240620",
-            name: "claude-3-5-sonnet-20240620",
+            modelId: "claude-3.5-sonnet-20240620",
+            name: "claude-3.5-sonnet-20240620",
             description: "A cutting-edge AI model renowned for its exceptional reasoning abilities and vast knowledge base",
             context_window: 200000,
             author: "Anthropic",
@@ -167,7 +167,7 @@ class Provider3 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "You are a helpful assistant.",
+                    prompt: "",
                     temperature,
                     max_tokens
                 }, true);
@@ -203,7 +203,7 @@ class Provider3 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "You are a helpful assistant.",
+                    prompt: "",
                     temperature,
                     max_tokens
                 }, true);
