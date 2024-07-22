@@ -5,7 +5,6 @@ const { ValidationError } = require('../utils/errors');
 exports.generateImage = async (req, res, next) => {
   const startTime = Date.now();
   try {
-
     const { 
       model, 
       prompt,
