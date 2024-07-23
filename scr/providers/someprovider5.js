@@ -160,6 +160,9 @@ class Provider5 extends ProviderInterface {
     }
 
     async generateCompletion(messages, temperature, max_tokens) {
+        const systemMessage = messages.find(msg => msg.role === "system");
+        const prompt = systemMessage ? systemMessage.content : " ";
+    
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
                 const response = await this.makeRequest('/api/chat', {
@@ -167,13 +170,13 @@ class Provider5 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "",
+                    prompt: prompt,
                     temperature,
                     max_tokens
-                }, true);
-
+                }, false);
+    
                 let fullContent = '';
-                for await (const chunk of response.data) {
+                for (const chunk of response.data) {
                     const chunkStr = chunk.toString();
                     if (chunkStr.includes('<html')) {
                         throw new Provider5Error('Invalid session', 'INVALID_SESSION');
@@ -196,6 +199,9 @@ class Provider5 extends ProviderInterface {
     }
 
     async *generateCompletionStream(messages, temperature, max_tokens) {
+        const systemMessage = messages.find(msg => msg.role === "system");
+        const prompt = systemMessage ? systemMessage.content : " ";
+    
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
                 const response = await this.makeRequest('/api/chat', {
@@ -203,7 +209,7 @@ class Provider5 extends ProviderInterface {
                     model: this.ModelInfo,
                     messages,
                     key: "",
-                    prompt: "",
+                    prompt: prompt,
                     temperature,
                     max_tokens
                 }, true);
