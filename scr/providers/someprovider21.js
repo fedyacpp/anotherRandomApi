@@ -18,12 +18,12 @@ class Provider21 {
     this.modelInfo = {
       modelId: "gpt-3.5-turbo-0125",
       name: "gpt-3.5-turbo-0125",
-      description: "The most recent iteration of GPT-3.5 Turbo, featuring improvements in performance and capabilities",
+      description: "The latest iteration of GPT-3.5 Turbo, offering enhanced performance and expanded capabilities for a wide range of language tasks",
       context_window: 16384,
       author: "OpenAI",
       unfiltered: true,
       reverseStatus: "Testing",
-      devNotes: ""
+      devNotes: "Troubles with message history"
     };
     this.vqd = null;
     this.historyContent = null;

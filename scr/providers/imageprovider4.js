@@ -18,14 +18,15 @@ class ImageProvider4Error extends CustomError {
 
 class ImageProvider4 extends ImageProviderInterface {
   constructor() {
-    super({
+    super();
+    this.modelInfo = {
       modelId: "stable-diffusion-2.1",
       name: "stable-diffusion-2.1",
-      description: "Filtered Stable Diffusion 2.1 image generation model",
+      description: "A refined, filtered version of Stable Diffusion 2.1, offering high-quality image generation with content safeguards",
       author: "Stability AI",
       unfiltered: false,
       reverseStatus: "Testing"
-    });
+    };
     this.wsUrl = 'wss://stabilityai-stable-diffusion.hf.space/queue/join';
     this.uploadUrl = 'https://imgbb.com/json';
     this.maxRetries = 3;

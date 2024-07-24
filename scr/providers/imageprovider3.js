@@ -16,14 +16,15 @@ class ImageProvider3Error extends Error {
 
 class ImageProvider3 extends ImageProviderInterface {
   constructor() {
-    super({
+    super();
+    this.modelInfo = {
       modelId: "anythingV3",
       name: "anythingV3",
-      description: "Anime styled image generation model",
+      description: "A robust version of the Anything series, known for its versatile anime-styled image generation capabilities",
       author: "Yuno779",
       unfiltered: true,
       reverseStatus: "Testing"
-    });
+    };
     this.apiUrl = 'https://api.prodia.com';
     this.imageUrl = 'https://images.prodia.xyz';
     this.maxAttempts = 3;

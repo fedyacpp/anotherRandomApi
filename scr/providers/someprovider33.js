@@ -7,26 +7,27 @@ const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
 
-class Provider7Error extends Error {
+class Provider33Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider7Error';
+    this.name = 'Provider33Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider7 extends ProviderInterface {
+class Provider33 extends ProviderInterface {
     constructor() {
         super();
         this.authBaseUrl = "https://liaobots.work";
         this.apiBaseUrl = "https://ai.liaobots.work/v1";
+        this.modelAlias = "gpt-3.5-turbo";
         this.modelInfo = {
-            modelId: "claude-2.1",
-            name: "claude-2.1",
-            description: "A reliable and versatile AI model by Anthropic, known for its consistent performance and adaptability across a wide range of applications and use cases",
-            context_window: 200000,
-            author: "Anthropic",
+            modelId: "gpt-3.5-turbo-0125",
+            name: "gpt-3.5-turbo-0125",
+            description: "The latest iteration of GPT-3.5 Turbo, offering significant enhancements in performance and a broader range of capabilities",
+            context_window: 16384,
+            author: "OpenAI",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP limiting for auth tokens"
@@ -110,7 +111,7 @@ class Provider7 extends ProviderInterface {
             }
         } catch (error) {
             Logger.error(`Failed to refresh auth code: ${error.message}`);
-            throw new Provider7Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
+            throw new Provider33Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
         }
     }
 
@@ -146,7 +147,7 @@ class Provider7 extends ProviderInterface {
                 await this.refreshAuthCode();
                 return this.makeRequest(endpoint, data, stream);
             }
-            throw new Provider7Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider33Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -177,7 +178,7 @@ class Provider7 extends ProviderInterface {
                 const response = await axios.post(
                     `${this.apiBaseUrl}/chat/completions`,
                     {
-                        model: this.modelInfo.modelId,
+                        model: this.modelAlias,
                         messages,
                         temperature,
                         max_tokens,
@@ -192,7 +193,7 @@ class Provider7 extends ProviderInterface {
                 if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider7Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                    throw new Provider33Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -206,7 +207,7 @@ class Provider7 extends ProviderInterface {
                 const response = await axios.post(
                     `${this.apiBaseUrl}/chat/completions`,
                     {
-                        model: this.modelInfo.modelId,
+                        model: this.modelAlias,
                         messages,
                         temperature,
                         max_tokens,
@@ -267,11 +268,11 @@ class Provider7 extends ProviderInterface {
                 if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider7Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                    throw new Provider33Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider7;
+module.exports = Provider33;

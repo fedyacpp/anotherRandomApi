@@ -24,7 +24,7 @@ class Provider28 extends ProviderInterface {
         this.modelInfo = {
             modelId: "llama-3.1-405b-instruct",
             name: "llama-3.1-405b-instruct",
-            description: "An open-source model surpassing gpt-4o in some evals",
+            description: "Meta's cutting-edge open-source model, rivaling and surpassing GPT-4o in certain evaluations, offering state-of-the-art performance for various tasks",
             context_window: 128000,
             author: "Meta",
             unfiltered: true,

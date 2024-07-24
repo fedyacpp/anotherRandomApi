@@ -23,12 +23,12 @@ class Provider1 extends ProviderInterface {
     this.modelInfo = {
       modelId: "inflection-2.5",
       name: "inflection-2.5",
-      description: "A highly approachable AI assistant developed by Inflection, known for its friendly demeanor",
+      description: "A friendly and approachable AI assistant developed by Inflection, designed to engage in natural conversations and provide helpful support across various topics",
       context_window: "Unknown",
       author: "Inflection",
       unfiltered: false,
       reverseStatus: "Testing",
-      devNotes: ""
+      devNotes: "No streaming otherwise you have an account generator"
     };
     this.rateLimiter = {
       tokens: 100,

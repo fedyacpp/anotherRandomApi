@@ -19,25 +19,17 @@ class Provider9Error extends Error {
 class Provider9 extends ProviderInterface {
     constructor() {
         super();
-        this.baseUrl = "https://liaobots.work";
+        this.authBaseUrl = "https://liaobots.work";
+        this.apiBaseUrl = "https://ai.liaobots.work/v1";
         this.modelInfo = {
             modelId: "gpt-4-0613",
             name: "gpt-4-0613",
-            description: "A groundbreaking language model that set new standards for AI capabilities and problem-solving",
+            description: "A groundbreaking language model by OpenAI that set new standards for AI capabilities, excelling in complex problem-solving and diverse applications",
             context_window: 8192,
             author: "OpenAI",
             unfiltered: true,
             reverseStatus: "Testing",
-            devNotes: "IP limiting"
-        };
-        this.ModelInfo = {
-            "id": "gpt-4-0613",
-            "name": "GPT-4-0613",
-            "maxLength": 32000,
-            "tokenLimit": 7600,
-            "model": "ChatGPT",
-            "provider": "OpenAI",
-            "context": "8K"
+            devNotes: "IP limiting for auth tokens"
         };
         this.authCode = null;
         this.cookieJar = null;
@@ -53,23 +45,23 @@ class Provider9 extends ProviderInterface {
         this.balance = 0;
     }
 
-    getHeaders() {
+    getHeaders(forAuth = false) {
         const headers = {
-            'authority': 'liaobots.com',
-            'content-type': 'application/json',
-            'origin': this.baseUrl,
-            'referer': `${this.baseUrl}/`,
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Unique/96.7.5796.97',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Unique/96.7.5796.97',
         };
-        if (this.authCode) {
-            headers['x-auth-code'] = this.authCode;
+        if (forAuth) {
+            headers['Origin'] = this.authBaseUrl;
+            headers['Referer'] = `${this.authBaseUrl}/`;
+        } else if (this.authCode) {
+            headers['Authorization'] = `Bearer ${this.authCode}`;
         }
         return headers;
     }
 
-    getAxiosConfig() {
+    getAxiosConfig(forAuth = false) {
         return {
-            headers: this.getHeaders(),
+            headers: this.getHeaders(forAuth),
             httpsAgent: new https.Agent({ 
                 rejectUnauthorized: false,
                 keepAlive: true,
@@ -91,20 +83,20 @@ class Provider9 extends ProviderInterface {
         try {
             Logger.info('Attempting to login...');
             const loginResponse = await axios.post(
-                `${this.baseUrl}/recaptcha/api/login`,
+                `${this.authBaseUrl}/recaptcha/api/login`,
                 { token: "abcdefghijklmnopqrst" },
-                this.getAxiosConfig()
+                this.getAxiosConfig(true)
             );
             this.cookieJar = loginResponse.headers['set-cookie'];
             Logger.info('Login successful, cookies obtained');
 
             const userInfoResponse = await axios.post(
-                `${this.baseUrl}/api/user`,
+                `${this.authBaseUrl}/api/user`,
                 { authcode: "" },
                 {
-                    ...this.getAxiosConfig(),
+                    ...this.getAxiosConfig(true),
                     headers: {
-                        ...this.getHeaders(),
+                        ...this.getHeaders(true),
                         Cookie: this.cookieJar
                     }
                 }
@@ -179,36 +171,25 @@ class Provider9 extends ProviderInterface {
 
     async generateCompletion(messages, temperature, max_tokens) {
         await this.ensureValidAuth();
-        const systemMessage = messages.find(msg => msg.role === "system");
-        const prompt = systemMessage ? systemMessage.content : " ";
     
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
-                const response = await this.makeRequest('/api/chat', {
-                    conversationId: uuid.v4(),
-                    model: this.ModelInfo,
-                    messages,
-                    key: "",
-                    prompt: prompt,
-                    temperature,
-                    max_tokens
-                }, false);
+                const response = await axios.post(
+                    `${this.apiBaseUrl}/chat/completions`,
+                    {
+                        model: this.modelInfo.modelId,
+                        messages,
+                        temperature,
+                        max_tokens,
+                        stream: false
+                    },
+                    this.getAxiosConfig()
+                );
     
-                let fullContent = '';
-                for (const chunk of response.data) {
-                    const chunkStr = chunk.toString();
-                    if (chunkStr.includes('<html')) {
-                        throw new Provider9Error('Invalid session', 'INVALID_SESSION');
-                    }
-                    fullContent += chunkStr;
-                }
-    
-                fullContent = fullContent.replace(/\s+/g, ' ').trim();
-    
-                return { content: fullContent };
+                return response.data.choices[0].message;
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
-                if (error instanceof Provider9Error && error.code === 'INVALID_SESSION') {
+                if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
                     throw new Provider9Error('Failed to generate completion', 'COMPLETION_ERROR', error);
@@ -219,59 +200,71 @@ class Provider9 extends ProviderInterface {
 
     async *generateCompletionStream(messages, temperature, max_tokens) {
         await this.ensureValidAuth();
-        const systemMessage = messages.find(msg => msg.role === "system");
-        const prompt = systemMessage ? systemMessage.content : " ";
     
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
-                const response = await this.makeRequest('/api/chat', {
-                    conversationId: uuid.v4(),
-                    model: this.ModelInfo,
-                    messages,
-                    key: "",
-                    prompt: prompt,
-                    temperature,
-                    max_tokens
-                }, true);
+                const response = await axios.post(
+                    `${this.apiBaseUrl}/chat/completions`,
+                    {
+                        model: this.modelInfo.modelId,
+                        messages,
+                        temperature,
+                        max_tokens,
+                        stream: true
+                    },
+                    {
+                        ...this.getAxiosConfig(),
+                        responseType: 'stream'
+                    }
+                );
     
                 let buffer = '';
                 for await (const chunk of response.data) {
-                    const chunkStr = chunk.toString();
-                    if (chunkStr.includes('<html')) {
-                        throw new Provider9Error('Invalid session', 'INVALID_SESSION');
-                    }
-                    buffer += chunkStr;
-                    
-                    while (buffer.includes(' ')) {
-                        const index = buffer.indexOf(' ');
-                        const part = buffer.slice(0, index).trim();
-                        if (part) {
-                            yield {
-                                choices: [{
-                                    delta: { content: part + ' ' },
-                                    index: 0,
-                                    finish_reason: null
-                                }]
-                            };
+                    buffer += chunk.toString();
+                    let processBuffer = buffer;
+                    buffer = '';
+
+                    while (true) {
+                        const newlineIndex = processBuffer.indexOf('\n');
+                        if (newlineIndex === -1) {
+                            buffer = processBuffer;
+                            break;
                         }
-                        buffer = buffer.slice(index + 1);
+
+                        const line = processBuffer.slice(0, newlineIndex).trim();
+                        processBuffer = processBuffer.slice(newlineIndex + 1);
+
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const jsonData = line.slice(6);
+                                if (jsonData === '[DONE]') {
+                                    return;
+                                }
+                                const data = JSON.parse(jsonData);
+                                if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                                    yield {
+                                        choices: [{
+                                            delta: { content: data.choices[0].delta.content },
+                                            index: 0,
+                                            finish_reason: data.choices[0].finish_reason
+                                        }]
+                                    };
+                                }
+                            } catch (parseError) {
+                                Logger.warn(`Error parsing JSON: ${parseError.message}. Skipping line: ${line}`);
+                            }
+                        }
                     }
                 }
     
                 if (buffer.trim()) {
-                    yield {
-                        choices: [{
-                            delta: { content: buffer.trim() },
-                            index: 0,
-                            finish_reason: null
-                        }]
-                    };
+                    Logger.warn(`Unprocessed data in buffer: ${buffer}`);
                 }
     
                 return;
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
-                if (error instanceof Provider9Error && error.code === 'INVALID_SESSION') {
+                if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
                     throw new Provider9Error('Failed to generate completion stream', 'STREAM_ERROR', error);

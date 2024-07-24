@@ -7,24 +7,24 @@ const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
 
-class Provider7Error extends Error {
+class Provider39Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider7Error';
+    this.name = 'Provider39Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider7 extends ProviderInterface {
+class Provider39 extends ProviderInterface {
     constructor() {
         super();
         this.authBaseUrl = "https://liaobots.work";
         this.apiBaseUrl = "https://ai.liaobots.work/v1";
         this.modelInfo = {
-            modelId: "claude-2.1",
-            name: "claude-2.1",
-            description: "A reliable and versatile AI model by Anthropic, known for its consistent performance and adaptability across a wide range of applications and use cases",
+            modelId: "claude-3-opus-20240229",
+            name: "claude-3-opus-20240229",
+            description: "A highly capable model in the Claude 3 series, offering advanced reasoning and broad knowledge, second only to Claude 3.5 Sonnet in performance",
             context_window: 200000,
             author: "Anthropic",
             unfiltered: true,
@@ -110,7 +110,7 @@ class Provider7 extends ProviderInterface {
             }
         } catch (error) {
             Logger.error(`Failed to refresh auth code: ${error.message}`);
-            throw new Provider7Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
+            throw new Provider39Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
         }
     }
 
@@ -146,7 +146,7 @@ class Provider7 extends ProviderInterface {
                 await this.refreshAuthCode();
                 return this.makeRequest(endpoint, data, stream);
             }
-            throw new Provider7Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider39Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -192,7 +192,7 @@ class Provider7 extends ProviderInterface {
                 if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider7Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                    throw new Provider39Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -267,11 +267,11 @@ class Provider7 extends ProviderInterface {
                 if (error.response?.status === 401) {
                     await this.refreshAuthCode();
                 } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider7Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                    throw new Provider39Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider7;
+module.exports = Provider39;

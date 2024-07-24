@@ -24,7 +24,7 @@ class Provider27 extends ProviderInterface {
         this.modelInfo = {
             modelId: "mixtral-8x22b-instruct",
             name: "mixtral-8x22b-instruct",
-            description: "A MoE model offering a blend of specialized knowledge across various domains",
+            description: "An advanced Mixture of Experts model by Mistral AI, offering enhanced specialized knowledge and improved performance across diverse domains",
             context_window: 64000,
             author: "Mistral AI",
             unfiltered: true,

@@ -18,12 +18,12 @@ class Provider23 {
     this.modelInfo = {
       modelId: "llama-3-70b-chat",
       name: "llama-3-70b-chat",
-      description: "Meta's extensive open-source chat model, designed for natural and engaging conversations",
+      description: "Meta's sophisticated open-source chat model, engineered to engage in natural, dynamic conversations across a broad spectrum of topics",
       context_window: 8192,
       author: "Meta",
       unfiltered: true,
       reverseStatus: "Testing",
-      devNotes: ""
+      devNotes: "Troubles with message history"
     };
     this.vqd = null;
     this.historyContent = null;

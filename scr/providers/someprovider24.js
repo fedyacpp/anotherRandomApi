@@ -18,12 +18,12 @@ class Provider24 {
     this.modelInfo = {
       modelId: "mixtral-8x7b-instruct",
       name: "mixtral-8x7b-instruct",
-      description: "A Mixture of Experts model offering a blend of specialized knowledge across various domains",
+      description: "An innovative Mixture of Experts model by Mistral AI, offering diverse specialized knowledge and adaptable responses across various domains",
       context_window: 32768,
       author: "Mistral AI",
       unfiltered: true,
       reverseStatus: "Testing",
-      devNotes: ""
+      devNotes: "Troubles with message history"
     };
     this.vqd = null;
     this.historyContent = null;

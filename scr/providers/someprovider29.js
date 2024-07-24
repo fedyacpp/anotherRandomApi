@@ -24,7 +24,7 @@ class Provider29 extends ProviderInterface {
         this.modelInfo = {
             modelId: "mistral-7b-instruct-v0.3",
             name: "mistral-7b-instruct-v0.3",
-            description: "Mistral's open-source model",
+            description: "Mistral AI's versatile open-source model, balancing efficiency and performance to deliver high-quality responses across a wide range of applications",
             context_window: 32000,
             author: "Mistral AI",
             unfiltered: true,

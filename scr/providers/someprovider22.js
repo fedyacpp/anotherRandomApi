@@ -18,12 +18,12 @@ class Provider22 {
     this.modelInfo = {
       modelId: "claude-3-haiku-20240307",
       name: "claude-3-haiku-20240307",
-      description: "A streamlined AI model designed for quick responses and efficient processing of shorter queries",
+      description: "A nimble AI model by Anthropic, optimized for swift responses and efficient processing of concise queries, ideal for rapid interactions",
       context_window: 200000,
       author: "Anthropic",
       unfiltered: true,
       reverseStatus: "Testing",
-      devNotes: "IP limiting"
+      devNotes: "Troubles with message history"
     };
     this.vqd = null;
     this.historyContent = null;

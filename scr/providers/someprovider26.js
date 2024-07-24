@@ -24,7 +24,7 @@ class Provider26 extends ProviderInterface {
         this.modelInfo = {
             modelId: "nemotron-4-340B-instruct",
             name: "nemotron-4-340B-instruct",
-            description: "A large language model by NVIDIA",
+            description: "A powerful large language model developed by NVIDIA, designed to handle complex instructions and deliver precise, context-aware responses",
             context_window: 4096,
             author: "NVIDIA",
             unfiltered: true,
