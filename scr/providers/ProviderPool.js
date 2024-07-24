@@ -9,6 +9,7 @@ class ProviderPool {
   static imageModelProviderMap = new Map();
   static chatModelsInfo = [];
   static imageModelsInfo = [];
+  static providerRatings = new Map();
 
   static initialize() {
     Logger.info('Initializing ProviderPool');
@@ -16,6 +17,7 @@ class ProviderPool {
       this.loadProviders();
       this.updateModelProviderMaps();
       this.updateModelsInfo();
+      this.initializeProviderRatings();
       Logger.info('ProviderPool initialized successfully');
     } catch (error) {
       Logger.error('Error initializing ProviderPool:', {
@@ -98,6 +100,40 @@ class ProviderPool {
     return Array.from(modelsMap.values());
   }
 
+  static initializeProviderRatings() {
+    [...this.chatProviders, ...this.imageProviders].forEach(provider => {
+      this.providerRatings.set(provider, {
+        avgResponseTime: 1000,
+        errorCount: 0,
+        totalCalls: 0,
+        score: 1
+      });
+    });
+  }
+
+  static updateProviderRating(provider, responseTime, isError) {
+    const rating = this.providerRatings.get(provider);
+    rating.totalCalls++;
+    
+    rating.avgResponseTime = (rating.avgResponseTime * (rating.totalCalls - 1) + responseTime) / rating.totalCalls;
+    
+    if (isError) {
+      rating.errorCount++;
+    }
+    
+    rating.score = (rating.avgResponseTime / 1000) * (1 + rating.errorCount / rating.totalCalls);
+    
+    this.providerRatings.set(provider, rating);
+  }
+
+  static getProvidersByRating(providers) {
+    return providers.sort((a, b) => {
+      const scoreA = this.providerRatings.get(a).score;
+      const scoreB = this.providerRatings.get(b).score;
+      return scoreA - scoreB;
+    });
+  }
+
   static getProviders(modelIdentifier, isImage = false) {
     const type = isImage ? 'image' : 'chat';
     Logger.info(`Getting ${type} providers for model: ${modelIdentifier}`);
@@ -131,34 +167,49 @@ class ProviderPool {
       throw error;
     }
 
-    const randomProvider = providers[Math.floor(Math.random() * providers.length)];
-    Logger.info(`Selected provider: ${randomProvider.constructor.name}`);
+    const sortedProviders = this.getProvidersByRating(providers);
 
-    try {
-      let result;
-      if (isImage) {
-        result = await randomProvider.generateImage(...args);
-      } else {
-        result = await randomProvider.generateCompletion(...args);
+    for (let i = 0; i < sortedProviders.length; i++) {
+      const provider = sortedProviders[i];
+      Logger.info(`Attempting with provider ${i + 1}/${sortedProviders.length}: ${provider.constructor.name}`);
+
+      const startTime = Date.now();
+      try {
+        let result;
+        if (isImage) {
+          result = await provider.generateImage(...args);
+        } else {
+          result = await provider.generateCompletion(...args);
+        }
+
+        const responseTime = Date.now() - startTime;
+
+        if (!result) {
+          Logger.warn(`No result generated for model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
+          this.updateProviderRating(provider, responseTime, true);
+          continue;
+        }
+
+        this.updateProviderRating(provider, responseTime, false);
+        Logger.info(`Successfully called ${isImage ? 'image' : 'chat'} model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
+        return result;
+      } catch (error) {
+        const responseTime = Date.now() - startTime;
+        this.updateProviderRating(provider, responseTime, true);
+
+        Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier} with provider ${provider.constructor.name}:`, {
+          error: error.message,
+          stack: error.stack,
+          args: args
+        });
+
+        if (i === sortedProviders.length - 1) {
+          throw new Error(`All providers failed for model ${modelIdentifier}. Last error: ${error.message}`);
+        }
       }
-
-      if (!result) {
-        const error = new Error(`No result generated for model: ${modelIdentifier}`);
-        Logger.warn(error.message);
-        throw error;
-      }
-
-      Logger.info(`Successfully called ${isImage ? 'image' : 'chat'} model: ${modelIdentifier}`);
-      return result;
-    } catch (error) {
-      Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier}:`, {
-        error: error.message,
-        stack: error.stack,
-        provider: randomProvider.constructor.name,
-        args: args
-      });
-      throw error;
     }
+
+    throw new Error(`Unexpected error: All providers failed for model ${modelIdentifier}`);
   }
 
   static getChatModelsInfo() {
