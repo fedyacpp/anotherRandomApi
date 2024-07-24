@@ -48,6 +48,9 @@ class Provider3 extends ProviderInterface {
             lastRefill: Date.now(),
             capacity: 500
         };
+        this.lastAuthRefresh = 0;
+        this.authRefreshInterval = 1 * 60 * 1000;
+        this.balance = 0;
     }
 
     getHeaders() {
@@ -107,14 +110,28 @@ class Provider3 extends ProviderInterface {
                 }
             );
             this.authCode = userInfoResponse.data.authCode;
-            Logger.info(`Auth code obtained: ${this.authCode}, Balance: ${userInfoResponse.data.balance}`);
+            this.balance = userInfoResponse.data.balance;
+            Logger.info(`Auth code obtained: ${this.authCode}, Balance: ${this.balance}`);
+
+            if (this.balance < 0.05) {
+                Logger.warn(`Low balance: ${this.balance}. Consider topping up.`);
+            }
         } catch (error) {
             Logger.error(`Failed to refresh auth code: ${error.message}`);
             throw new Provider3Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
         }
     }
 
+    async ensureValidAuth() {
+        const now = Date.now();
+        if (now - this.lastAuthRefresh > this.authRefreshInterval || this.balance < 0.05) {
+            await this.refreshAuthCode();
+            this.lastAuthRefresh = now;
+        }
+    }
+
     async makeRequest(endpoint, data, stream = false) {
+        await this.ensureValidAuth();
         await this.waitForRateLimit();
         
         const config = {
@@ -159,7 +176,9 @@ class Provider3 extends ProviderInterface {
         this.rateLimiter.tokens -= 1;
     }
 
+
     async generateCompletion(messages, temperature, max_tokens) {
+        await this.ensureValidAuth();
         const systemMessage = messages.find(msg => msg.role === "system");
         const prompt = systemMessage ? systemMessage.content : " ";
     
@@ -199,6 +218,7 @@ class Provider3 extends ProviderInterface {
     }
 
     async *generateCompletionStream(messages, temperature, max_tokens) {
+        await this.ensureValidAuth();
         const systemMessage = messages.find(msg => msg.role === "system");
         const prompt = systemMessage ? systemMessage.content : " ";
     
