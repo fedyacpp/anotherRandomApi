@@ -7,26 +7,26 @@ const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
 
-class Provider26Error extends Error {
+class Provider40Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider26Error';
+    this.name = 'Provider40Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider26 extends ProviderInterface {
+class Provider40 extends ProviderInterface {
     constructor() {
         super();
         this.baseUrl = "https://api.deepinfra.com";
-        this.modelName = "nvidia/Nemotron-4-340B-Instruct"
+        this.modelName = "meta-llama/Meta-Llama-3.1-70B-Instruct"
         this.modelInfo = {
-            modelId: "nemotron-4-340b-instruct",
-            name: "nemotron-4-340b-instruct",
-            description: "A powerful large language model developed by NVIDIA, designed to handle complex instructions and deliver precise, context-aware responses",
-            context_window: 4096,
-            author: "NVIDIA",
+            modelId: "llama-3.1-70b-instruct",
+            name: "llama-3.1-70b-instruct",
+            description: "Meta's advanced open-source instruction-following model, featuring an expanded context window and capable of handling complex tasks across diverse domains",
+            context_window: 128000,
+            author: "Meta",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP rate limit"
@@ -90,7 +90,7 @@ class Provider26 extends ProviderInterface {
             const response = await axios.post(`${this.baseUrl}${endpoint}`, data, config);
             return response;
         } catch (error) {
-            throw new Provider26Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider40Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -127,7 +127,7 @@ class Provider26 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider26Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                    throw new Provider40Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -201,11 +201,11 @@ class Provider26 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider26Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                    throw new Provider40Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider26;
+module.exports = Provider40;
