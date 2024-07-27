@@ -224,12 +224,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addImageMessage(sender, imageUrl) {
+    async function generateImage(prompt) {
+        const size = imageSizeSelect.value;
+        const n = parseInt(imageCountInput.value);
+        const model = modelSelect.value;
+        const negativePrompt = document.getElementById('negative-prompt').value;
+    
+        try {
+            const response = await fetch('http://localhost:8000/v1/images/generations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: model,
+                    prompt: prompt,
+                    n: n,
+                    size: size,
+                    negative_prompt: negativePrompt
+                }),
+            });
+    
+            if (!response.ok) {
+                throw new Error('API request failed');
+            }
+    
+            const data = await response.json();
+            
+            if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+                data.data.forEach((imageUrl, index) => {
+                    addImageMessage('ai', imageUrl, `Generated image ${index + 1}:`);
+                });
+            } else {
+                addMessage('error', 'No images were generated.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            addMessage('error', 'An error occurred while generating the image.');
+        }
+    }
+    
+    function addImageMessage(sender, imageUrl, caption) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', sender);
         
         const textElement = document.createElement('p');
-        textElement.textContent = 'Generated image:';
+        textElement.textContent = caption;
         messageElement.appendChild(textElement);
         
         const imageContainer = document.createElement('div');
@@ -255,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessages.appendChild(messageElement);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
+
     function addMessage(sender, content) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', sender);
