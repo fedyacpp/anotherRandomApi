@@ -4,7 +4,7 @@ This project provides an API for chat completion and image generation, supportin
 
 ## Providers and Models
 
-- 4 text providers with a total of 28 text models
+- 4 text providers with a total of 25 text models
 - 2 image generation providers with a total of 4 image models
 
 ## Setup
