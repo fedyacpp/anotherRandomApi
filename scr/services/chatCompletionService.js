@@ -32,7 +32,7 @@ class ChatCompletionService {
   }
 
   static async _generateCompletionInternal(model, messages, temperature, max_tokens, functions, function_call) {
-    const providers = ProviderPool.getProviders(model);
+    const providers = ProviderPool.getProviders(model, 'chat');
     this.validateProviders(providers, model);
     const selectedProvider = this.selectProvider(providers);
     Logger.info(`Using provider: ${selectedProvider.constructor.name} for model: ${model}`);
@@ -118,7 +118,7 @@ class ChatCompletionService {
   }
 
   static async *_generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call) {
-    const providers = ProviderPool.getProviders(model);
+    const providers = ProviderPool.getProviders(model, 'chat');
     this.validateProviders(providers, model);
     const selectedProvider = this.selectProvider(providers);
     Logger.info(`Starting streaming completion for model: ${model} using provider: ${selectedProvider.constructor.name}`);

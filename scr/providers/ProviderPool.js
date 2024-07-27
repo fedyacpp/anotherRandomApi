@@ -37,7 +37,7 @@ class ProviderPool {
       (file.startsWith('someprovider') || file.startsWith('imageprovider') || file.startsWith('audioprovider')) && file.endsWith('.js')
     );
     Logger.info(`Found ${providerFiles.length} provider files`);
-
+  
     providerFiles.forEach(file => {
       try {
         const ProviderClass = require(path.join(providerDir, file));
@@ -58,7 +58,7 @@ class ProviderPool {
         });
       }
     });
-
+  
     Logger.info(`Loaded ${this.chatProviders.length} chat providers, ${this.imageProviders.length} image providers, and ${this.audioProviders.length} audio providers`);
   }
 
@@ -156,7 +156,7 @@ class ProviderPool {
       Logger.error(error.message);
       throw error;
     }
-
+  
     let map;
     switch (type) {
       case 'chat':
@@ -177,7 +177,7 @@ class ProviderPool {
       Logger.info(`Found ${providers.length} providers for model: ${modelIdentifier}`);
       return providers;
     }
-
+  
     const error = new Error(`No ${type} provider found for model ${modelIdentifier}`);
     Logger.error(error.message);
     throw error;
@@ -192,13 +192,13 @@ class ProviderPool {
       Logger.error(error.message);
       throw error;
     }
-
+  
     const sortedProviders = this.getProvidersByRating(providers);
-
+  
     for (let i = 0; i < sortedProviders.length; i++) {
       const provider = sortedProviders[i];
       Logger.info(`Attempting with provider ${i + 1}/${sortedProviders.length}: ${provider.constructor.name}`);
-
+  
       const startTime = Date.now();
       try {
         let result;
@@ -215,34 +215,34 @@ class ProviderPool {
           default:
             throw new Error(`Invalid provider type: ${type}`);
         }
-
+  
         const responseTime = Date.now() - startTime;
-
+  
         if (!result) {
           Logger.warn(`No result generated for model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
           this.updateProviderRating(provider, responseTime, true);
           continue;
         }
-
+  
         this.updateProviderRating(provider, responseTime, false);
         Logger.info(`Successfully called ${type} model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
         return result;
       } catch (error) {
         const responseTime = Date.now() - startTime;
         this.updateProviderRating(provider, responseTime, true);
-
+  
         Logger.error(`Error calling ${type} model ${modelIdentifier} with provider ${provider.constructor.name}:`, {
           error: error.message,
           stack: error.stack,
           args: args
         });
-
+  
         if (i === sortedProviders.length - 1) {
           throw new Error(`All providers failed for model ${modelIdentifier}. Last error: ${error.message}`);
         }
       }
     }
-
+  
     throw new Error(`Unexpected error: All providers failed for model ${modelIdentifier}`);
   }
 
