@@ -10,6 +10,7 @@ const http = require('http');
 const config = require('../config');
 const routes = require('../routes');
 const chatRoutes = require('../routes/chat');
+const audioRoutes = require('../routes/audioTranscription');
 const errorMiddleware = require('../middleware/errorMiddleware');
 const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const timeoutMiddleware = require('../middleware/timeoutMiddleware');
@@ -80,6 +81,7 @@ class Server {
     configureRoutes() {
         this.app.use('/v1', routes);
         this.app.use('/test', chatRoutes);
+        this.app.use('/v1/audio', audioRoutes);
     }
 
     configureErrorHandling() {

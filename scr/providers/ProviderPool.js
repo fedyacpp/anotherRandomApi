@@ -5,10 +5,13 @@ const Logger = require('../helpers/logger');
 class ProviderPool {
   static chatProviders = [];
   static imageProviders = [];
+  static audioProviders = [];
   static chatModelProviderMap = new Map();
   static imageModelProviderMap = new Map();
+  static audioModelProviderMap = new Map();
   static chatModelsInfo = [];
   static imageModelsInfo = [];
+  static audioModelsInfo = [];
   static providerRatings = new Map();
 
   static initialize() {
@@ -31,7 +34,7 @@ class ProviderPool {
   static loadProviders() {
     const providerDir = __dirname;
     const providerFiles = fs.readdirSync(providerDir).filter(file =>
-      (file.startsWith('someprovider') || file.startsWith('imageprovider')) && file.endsWith('.js')
+      (file.startsWith('someprovider') || file.startsWith('imageprovider') || file.startsWith('audioprovider')) && file.endsWith('.js')
     );
     Logger.info(`Found ${providerFiles.length} provider files`);
 
@@ -44,6 +47,8 @@ class ProviderPool {
           this.chatProviders.push(provider);
         } else if (file.startsWith('imageprovider')) {
           this.imageProviders.push(provider);
+        } else if (file.startsWith('audioprovider')) {
+          this.audioProviders.push(provider);
         }
         Logger.info(`Loaded provider: ${provider.constructor.name}`);
       } catch (error) {
@@ -54,12 +59,13 @@ class ProviderPool {
       }
     });
 
-    Logger.info(`Loaded ${this.chatProviders.length} chat providers and ${this.imageProviders.length} image providers`);
+    Logger.info(`Loaded ${this.chatProviders.length} chat providers, ${this.imageProviders.length} image providers, and ${this.audioProviders.length} audio providers`);
   }
 
   static updateModelProviderMaps() {
     this.updateModelProviderMap(this.chatProviders, this.chatModelProviderMap);
     this.updateModelProviderMap(this.imageProviders, this.imageModelProviderMap);
+    this.updateModelProviderMap(this.audioProviders, this.audioModelProviderMap);
   }
 
   static updateModelProviderMap(providers, map) {
@@ -81,6 +87,7 @@ class ProviderPool {
   static updateModelsInfo() {
     this.chatModelsInfo = this.getModelsInfo(this.chatProviders);
     this.imageModelsInfo = this.getModelsInfo(this.imageProviders);
+    this.audioModelsInfo = this.getModelsInfo(this.audioProviders);
   }
 
   static getModelsInfo(providers) {
@@ -91,6 +98,13 @@ class ProviderPool {
         return;
       }
       const modelInfo = { ...provider.modelInfo, providerCount: 1 };
+      
+      Object.keys(modelInfo).forEach(key => {
+        if (modelInfo[key] === 'n/a') {
+          modelInfo[key] = null;
+        }
+      });
+
       if (modelsMap.has(modelInfo.modelId)) {
         modelsMap.get(modelInfo.modelId).providerCount += 1;
       } else {
@@ -101,7 +115,7 @@ class ProviderPool {
   }
 
   static initializeProviderRatings() {
-    [...this.chatProviders, ...this.imageProviders].forEach(provider => {
+    [...this.chatProviders, ...this.imageProviders, ...this.audioProviders].forEach(provider => {
       this.providerRatings.set(provider, {
         avgResponseTime: 1000,
         errorCount: 0,
@@ -134,8 +148,7 @@ class ProviderPool {
     });
   }
 
-  static getProviders(modelIdentifier, isImage = false) {
-    const type = isImage ? 'image' : 'chat';
+  static getProviders(modelIdentifier, type) {
     Logger.info(`Getting ${type} providers for model: ${modelIdentifier}`);
     
     if (!modelIdentifier) {
@@ -144,7 +157,20 @@ class ProviderPool {
       throw error;
     }
 
-    const map = isImage ? this.imageModelProviderMap : this.chatModelProviderMap;
+    let map;
+    switch (type) {
+      case 'chat':
+        map = this.chatModelProviderMap;
+        break;
+      case 'image':
+        map = this.imageModelProviderMap;
+        break;
+      case 'audio':
+        map = this.audioModelProviderMap;
+        break;
+      default:
+        throw new Error(`Invalid provider type: ${type}`);
+    }
     
     if (map.has(modelIdentifier)) {
       const providers = Array.from(map.get(modelIdentifier));
@@ -157,10 +183,10 @@ class ProviderPool {
     throw error;
   }
 
-  static async callModel(modelIdentifier, isImage = false, ...args) {
-    Logger.info(`Attempting to call ${isImage ? 'image' : 'chat'} model: ${modelIdentifier}`);
+  static async callModel(modelIdentifier, type, ...args) {
+    Logger.info(`Attempting to call ${type} model: ${modelIdentifier}`);
     
-    const providers = this.getProviders(modelIdentifier, isImage);
+    const providers = this.getProviders(modelIdentifier, type);
     if (providers.length === 0) {
       const error = new Error(`No providers available for model: ${modelIdentifier}`);
       Logger.error(error.message);
@@ -176,10 +202,18 @@ class ProviderPool {
       const startTime = Date.now();
       try {
         let result;
-        if (isImage) {
-          result = await provider.generateImage(...args);
-        } else {
-          result = await provider.generateCompletion(...args);
+        switch (type) {
+          case 'chat':
+            result = await provider.generateCompletion(...args);
+            break;
+          case 'image':
+            result = await provider.generateImage(...args);
+            break;
+          case 'audio':
+            result = await provider.generateTranscription(...args);
+            break;
+          default:
+            throw new Error(`Invalid provider type: ${type}`);
         }
 
         const responseTime = Date.now() - startTime;
@@ -191,13 +225,13 @@ class ProviderPool {
         }
 
         this.updateProviderRating(provider, responseTime, false);
-        Logger.info(`Successfully called ${isImage ? 'image' : 'chat'} model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
+        Logger.info(`Successfully called ${type} model: ${modelIdentifier} with provider: ${provider.constructor.name}`);
         return result;
       } catch (error) {
         const responseTime = Date.now() - startTime;
         this.updateProviderRating(provider, responseTime, true);
 
-        Logger.error(`Error calling ${isImage ? 'image' : 'chat'} model ${modelIdentifier} with provider ${provider.constructor.name}:`, {
+        Logger.error(`Error calling ${type} model ${modelIdentifier} with provider ${provider.constructor.name}:`, {
           error: error.message,
           stack: error.stack,
           args: args
@@ -218,6 +252,10 @@ class ProviderPool {
 
   static getImageModelsInfo() {
     return this.imageModelsInfo;
+  }
+
+  static getAudioModelsInfo() {
+    return this.audioModelsInfo;
   }
 }
 

@@ -11,28 +11,33 @@ class ModelsService {
     try {
       const chatModels = ProviderPool.getChatModelsInfo();
       const imageModels = ProviderPool.getImageModelsInfo();
+      const audioModels = ProviderPool.getAudioModelsInfo();
 
-      if ((!chatModels || chatModels.length === 0) && (!imageModels || imageModels.length === 0)) {
+      if ((!chatModels || chatModels.length === 0) && 
+          (!imageModels || imageModels.length === 0) && 
+          (!audioModels || audioModels.length === 0)) {
         throw new Error('No models available');
       }
       
-      const formattedChatModels = chatModels.map(model => this.formatModel(model, false));
-      const formattedImageModels = imageModels.map(model => this.formatModel(model, true));
+      const formattedChatModels = chatModels.map(model => this.formatModel(model, 'chat'));
+      const formattedImageModels = imageModels.map(model => this.formatModel(model, 'image'));
+      const formattedAudioModels = audioModels.map(model => this.formatModel(model, 'audio'));
 
-      const allModels = [...formattedChatModels, ...formattedImageModels];
-      allModels.sort(this.compareModels);
+      const sortedChatModels = this.sortModelsByProvider(formattedChatModels);
+      const sortedImageModels = this.sortModelsByProvider(formattedImageModels);
+      const sortedAudioModels = this.sortModelsByProvider(formattedAudioModels);
 
-      return allModels;
+      return [...sortedChatModels, ...sortedImageModels, ...sortedAudioModels];
     } catch (error) {
       Logger.error(`Error fetching models: ${error.message}`);
       throw error;
     }
   }
 
-  static formatModel(model, isImage) {
+  static formatModel(model, type) {
     return {
       id: model.name,
-      object: isImage ? "image_model" : "model",
+      object: this.getModelObject(type),
       description: model.description,
       owned_by: model.author || "unknown",
       unfiltered: model.unfiltered,
@@ -45,19 +50,30 @@ class ModelsService {
     };
   }
 
-  static compareModels(a, b) {
-    const orderA = ModelsService.getProviderOrder(a.owned_by);
-    const orderB = ModelsService.getProviderOrder(b.owned_by);
-
-    if (orderA !== orderB) {
-      return orderA - orderB;
+  static getModelObject(type) {
+    switch (type) {
+      case 'chat':
+        return 'model';
+      case 'image':
+        return 'image_model';
+      case 'audio':
+        return 'audio_model';
+      default:
+        return 'unknown_model';
     }
+  }
 
-    if (a.object !== b.object) {
-      return a.object === "model" ? -1 : 1;
-    }
+  static sortModelsByProvider(models) {
+    return models.sort((a, b) => {
+      const orderA = this.getProviderOrder(a.owned_by);
+      const orderB = this.getProviderOrder(b.owned_by);
 
-    return a.id.localeCompare(b.id);
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      return a.id.localeCompare(b.id);
+    });
   }
 
   static getProviderOrder(provider) {
