@@ -13,7 +13,12 @@ async function getModelIds() {
       }
       
       const modelIds = data.data.map(model => model.id);
+      const chatModelCount = data.data.filter(model => model.object === 'model').length;
+      const imageModelCount = data.data.filter(model => model.object === 'image_model').length;
       
+      console.log(`Model IDs: ${modelIds.length}`);
+      console.log(`Chat models: ${chatModelCount}`);
+      console.log(`Image models: ${imageModelCount}`);
       console.log('Model IDs:', modelIds);
       
       return modelIds;
