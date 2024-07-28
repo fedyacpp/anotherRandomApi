@@ -105,7 +105,8 @@ class ChatCompletionService {
       const streamGenerator = this._generateCompletionStreamInternal(model, messages, temperature, max_tokens, functions, function_call);
       
       for await (const chunk of streamGenerator) {
-        yield this.formatStreamChunk(responseId, created, model, chunk);
+        const formattedChunk = this.formatStreamChunk(responseId, created, model, chunk);
+        yield formattedChunk;
         await Promise.race([Promise.resolve(), timeoutPromise]);
       }
       

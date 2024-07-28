@@ -16,11 +16,52 @@ const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const timeoutMiddleware = require('../middleware/timeoutMiddleware');
 const Logger = require('../helpers/logger');
 const ProxyManager = require('../helpers/proxyManager');
+const authCodeGenerator = require('../helpers/authCodeManager');
+
+class AuthCodeGeneratorManager {
+    constructor() {
+        this.isGenerating = false;
+        this.interval = null;
+        this.normalRate = 15;
+        this.highLoadRate = 30;
+        this.currentRate = this.normalRate;
+    }
+
+    start() {
+        this.interval = setInterval(() => this.generate(), 60000 / this.currentRate);
+    }
+
+    stop() {
+        if (this.interval) {
+            clearInterval(this.interval);
+        }
+    }
+
+    setHighLoadMode(isHighLoad) {
+        this.currentRate = isHighLoad ? this.highLoadRate : this.normalRate;
+        this.stop();
+        this.start();
+    }
+
+    async generate() {
+        if (this.isGenerating) return;
+        this.isGenerating = true;
+
+        try {
+            await authCodeGenerator.generateAuthCode();
+        } catch (error) {
+            Logger.error('Error generating auth code:', error);
+        } finally {
+            this.isGenerating = false;
+        }
+    }
+}
 
 class Server {
     constructor() {
         this.app = express();
         this.cfClearanceScraperProcess = null;
+        this.authCodeGeneratorManager = new AuthCodeGeneratorManager();
         this.configureMiddleware();
         this.configureRoutes();
         this.configureErrorHandling();
@@ -110,15 +151,24 @@ class Server {
                 });
 
                 await ProxyManager.initialize();
+                await authCodeGenerator.initialize();
+                this.authCodeGeneratorManager.start();
                 
                 if (config.useCFClearanceScraper) {
                     Logger.info('Starting CF Clearance Scraper...');
                     await this.startCFClearanceScraper();
-                    Logger.success('Server and CF Clearance Scraper are fully operational');
+                    Logger.success('Server, Auth Code Generator, and CF Clearance Scraper are fully operational');
                 } else {
                     Logger.info('CF Clearance Scraper is disabled');
-                    Logger.success('Server is fully operational');
+                    Logger.success('Server and Auth Code Generator are fully operational');
                 }
+
+                setInterval(() => {
+                    const load = os.loadavg()[0] / os.cpus().length;
+                    const isHighLoad = load > 0.7;
+                    this.authCodeGeneratorManager.setHighLoadMode(isHighLoad);
+                }, 60000);
+
             } else {
                 const startServer = (port) => {
                     this.server = this.app.listen(port, () => {
@@ -151,6 +201,7 @@ class Server {
             if (this.cfClearanceScraperProcess && config.useCFClearanceScraper) {
                 this.cfClearanceScraperProcess.kill();
             }
+            this.authCodeGeneratorManager.stop();
             if (this.server) {
                 this.server.close(() => {
                     Logger.info('Closed out remaining connections');
