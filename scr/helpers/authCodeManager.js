@@ -1,18 +1,14 @@
-const fs = require('fs').promises;
-const path = require('path');
 const axios = require('axios');
-const Logger = require('./logger');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const Logger = require('./logger');
+const path = require('path');
+const fs = require('fs').promises;
 
 class AuthCodeManager {
     constructor() {
-        this.authCodeFile = path.join(__dirname, '..', '..', 'authCodes.json');
-        this.authCodes = [];
-        this.minBalance = 0.04;
         this.authBaseUrl = "https://liaobots.work";
         this.requestDelay = 5000;
-        this.zeroBalanceDelay = 40000;
-        this.blockedAuthCodes = new Set();
+        this.maxRetries = 3;
         this.proxyConfig = {
             host: '',
             port: ,
@@ -21,11 +17,15 @@ class AuthCodeManager {
                 password: ''
             }
         };
+        this.authCodes = [];
+        this.blockedAuthCodes = [];
+        this.authCodeFile = path.join(__dirname, '..', '..', 'authCodes.json');
+        this.minBalance = 0.02;
     }
 
     async initialize() {
         await this.loadAuthCodes();
-        Logger.info(`AuthCodeManager initialized successfully with ${this.authCodes.length} auth codes`);
+        Logger.info(`AuthCodeManager initialized with ${this.authCodes.length} auth codes and ${this.blockedAuthCodes.length} blocked codes`);
     }
 
     async loadAuthCodes() {
@@ -33,91 +33,137 @@ class AuthCodeManager {
             const data = await fs.readFile(this.authCodeFile, 'utf8');
             const parsedData = JSON.parse(data);
             this.authCodes = parsedData.authCodes || [];
-            this.blockedAuthCodes = new Set(parsedData.blockedAuthCodes || []);
-            Logger.info(`Loaded ${this.authCodes.length} auth codes and ${this.blockedAuthCodes.size} blocked codes`);
-            
-            this.authCodes.forEach((code, index) => {
-                Logger.info(`Auth code ${index + 1}: ${code.code}, Balance: ${code.balance}`);
-            });
+            this.blockedAuthCodes = parsedData.blockedAuthCodes || [];
+            Logger.info(`Loaded ${this.authCodes.length} auth codes and ${this.blockedAuthCodes.length} blocked codes`);
         } catch (error) {
-            Logger.error(`Error loading auth codes: ${error.message}`);
+            Logger.warn(`Error loading auth codes: ${error.message}. Starting with empty lists.`);
             this.authCodes = [];
-            this.blockedAuthCodes = new Set();
+            this.blockedAuthCodes = [];
         }
     }
 
     async saveAuthCodes() {
-        const dataToSave = {
-            authCodes: this.authCodes,
-            blockedAuthCodes: Array.from(this.blockedAuthCodes)
-        };
-        await fs.writeFile(this.authCodeFile, JSON.stringify(dataToSave, null, 2));
-        Logger.info(`Saved ${this.authCodes.length} auth codes and ${this.blockedAuthCodes.size} blocked codes`);
+        try {
+            const dataToSave = {
+                authCodes: this.authCodes,
+                blockedAuthCodes: this.blockedAuthCodes
+            };
+            await fs.writeFile(this.authCodeFile, JSON.stringify(dataToSave, null, 2));
+            Logger.info(`Saved ${this.authCodes.length} auth codes and ${this.blockedAuthCodes.length} blocked codes`);
+            
+            const savedData = await fs.readFile(this.authCodeFile, 'utf8');
+            const parsedSavedData = JSON.parse(savedData);
+            if (parsedSavedData.authCodes.length !== this.authCodes.length) {
+                Logger.error('Verification failed: Saved auth codes count does not match');
+            } else {
+                Logger.info('Verification successful: Auth codes saved correctly');
+            }
+        } catch (error) {
+            Logger.error(`Error saving auth codes: ${error.message}`);
+        }
     }
 
     async getValidAuthCode() {
-        Logger.info(`Checking ${this.authCodes.length} auth codes for validity`);
-        const validCodes = this.authCodes.filter(code => code.balance >= this.minBalance);
-        Logger.info(`Found ${validCodes.length} valid auth codes`);
+        let validCode = this.authCodes.find(code => code.balance >= this.minBalance);
         
-        if (validCodes.length > 0) {
-            const validCode = validCodes[0];
-            Logger.info(`Using existing auth code: ${validCode.code} with balance ${validCode.balance}`);
-            return validCode;
+        if (validCode) {
+            Logger.info(`Using existing auth code: ${validCode.code}`);
+            return validCode.code;
+        }
+        
+        await this.loadAuthCodes();
+        
+        validCode = this.authCodes.find(code => code.balance >= this.minBalance);
+        
+        if (validCode) {
+            Logger.info(`Using auth code from file: ${validCode.code}`);
+            return validCode.code;
         }
         
         Logger.info('No valid auth codes found. Generating a new one...');
-        return this.generateAuthCode();
+        const newCode = await this.generateAuthCode();
+        if (newCode) {
+            this.authCodes.push(newCode);
+            await this.saveAuthCodes();
+            return newCode.code;
+        }
+        
+        throw new Error('Failed to get a valid auth code');
     }
 
-    async generateAuthCode() {
-        try {
-            Logger.info('Generating new auth code...');
-            const loginResponse = await axios.post(
-                `${this.authBaseUrl}/recaptcha/api/login`,
-                { token: "abcdefghijklmnopqrst" },
-                this.getAxiosConfig()
-            );
-            const cookieJar = loginResponse.headers['set-cookie'];
-
-            await this.delay(this.requestDelay);
-
-            const userInfoResponse = await axios.post(
-                `${this.authBaseUrl}/api/user`,
-                { authcode: "" },
-                {
-                    ...this.getAxiosConfig(),
-                    headers: {
-                        ...this.getAxiosConfig().headers,
-                        Cookie: cookieJar
-                    }
-                }
-            );
-
-            const newAuthCode = {
-                code: userInfoResponse.data.authCode,
-                balance: userInfoResponse.data.balance,
-                cookies: cookieJar
-            };
-
-            if (newAuthCode.balance > 0) {
-                this.authCodes.push(newAuthCode);
-                await this.saveAuthCodes();
-                Logger.info(`New auth code generated. Code: ${newAuthCode.code}, Balance: ${newAuthCode.balance}`);
-            } else {
-                Logger.warn(`Generated auth code has zero balance. It will be blocked.`);
-                this.blockedAuthCodes.add(newAuthCode.code);
-                await this.saveAuthCodes();
+    async updateAuthCodeBalance(code, newBalance) {
+        const codeIndex = this.authCodes.findIndex(c => c.code === code);
+        if (codeIndex !== -1) {
+            this.authCodes[codeIndex].balance = newBalance;
+            if (newBalance < this.minBalance) {
+                this.authCodes.splice(codeIndex, 1);
+                this.blockedAuthCodes.push(code);
+                Logger.info(`Removed auth code ${code} due to low balance and added to blocked list`);
             }
-
-            return newAuthCode;
-        } catch (error) {
-            Logger.error(`Failed to generate new auth code: ${error.message}`);
-            throw error;
+            await this.saveAuthCodes();
+            Logger.info(`Updated balance for auth code ${code}: ${newBalance}`);
         }
     }
 
-    getAxiosConfig(authCode = '') {
+    async generateAuthCode() {
+        for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+            try {
+                Logger.info(`Generating new auth code (Attempt ${attempt})...`);
+                const loginResponse = await axios.post(
+                    `${this.authBaseUrl}/recaptcha/api/login`,
+                    { token: "abcdefghijklmnopqrst" },
+                    this.getAxiosConfig()
+                );
+                const cookieJar = loginResponse.headers['set-cookie'];
+    
+                await this.delay(this.requestDelay);
+    
+                const userInfoResponse = await axios.post(
+                    `${this.authBaseUrl}/api/user`,
+                    { authcode: "" },
+                    {
+                        ...this.getAxiosConfig(),
+                        headers: {
+                            ...this.getAxiosConfig().headers,
+                            Cookie: cookieJar
+                        }
+                    }
+                );
+    
+                const newAuthCode = {
+                    code: userInfoResponse.data.authCode,
+                    balance: userInfoResponse.data.balance,
+                    cookies: cookieJar
+                };
+    
+                if (newAuthCode.balance === 0) {
+                    Logger.warn(`Generated auth code ${newAuthCode.code} has zero balance. Blocking it.`);
+                    this.blockedAuthCodes.push(newAuthCode.code);
+                } else {
+                    Logger.info(`Generated auth code: ${newAuthCode.code}, Balance: ${newAuthCode.balance}`);
+                    this.authCodes.push(newAuthCode);
+                }
+    
+                await this.saveAuthCodes();
+    
+                return newAuthCode.balance > 0 ? newAuthCode : null;
+    
+            } catch (error) {
+                Logger.error(`Failed to generate new auth code (Attempt ${attempt}): ${error.message}`);
+                if (error.response) {
+                    Logger.error(`Response status: ${error.response.status}`);
+                    Logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+                }
+                if (attempt === this.maxRetries) {
+                    throw new Error(`Failed to generate auth code after ${this.maxRetries} attempts`);
+                }
+            }
+            await this.delay(this.requestDelay);
+        }
+        return null;
+    }
+
+    getAxiosConfig() {
         const httpsAgent = new HttpsProxyAgent(`http://${this.proxyConfig.auth.username}:${this.proxyConfig.auth.password}@${this.proxyConfig.host}:${this.proxyConfig.port}`);
         
         return {
@@ -133,26 +179,17 @@ class AuthCodeManager {
         };
     }
 
-    async updateAuthCodeBalance(code, newBalance) {
-        const authCode = this.authCodes.find(auth => auth.code === code);
-        if (authCode) {
-            Logger.info(`Updating balance for auth code ${code}: ${authCode.balance} -> ${newBalance}`);
-            authCode.balance = newBalance;
-            if (newBalance < this.minBalance) {
-                this.removeAuthCode(code);
-            }
+    
+    async moveAuthCodeToBlocked(code) {
+        const index = this.authCodes.findIndex(c => c.code === code);
+        if (index !== -1) {
+            const [removedCode] = this.authCodes.splice(index, 1);
+            this.blockedAuthCodes.push(removedCode.code);
+            Logger.info(`Moved auth code ${code} to blocked list`);
             await this.saveAuthCodes();
+        } else {
+            Logger.warn(`Auth code ${code} not found in active list`);
         }
-    }
-
-    removeAuthCode(code) {
-        this.authCodes = this.authCodes.filter(auth => auth.code !== code);
-        this.blockedAuthCodes.add(code);
-        Logger.info(`Removed auth code ${code} due to low balance`);
-    }
-
-    isAuthError(error) {
-        return error.response?.status === 402 || error.response?.status === 401 || error.message.includes('Invalid session');
     }
 
     delay(ms) {
@@ -160,4 +197,4 @@ class AuthCodeManager {
     }
 }
 
-module.exports = new AuthCodeManager();
+module.exports = AuthCodeManager;

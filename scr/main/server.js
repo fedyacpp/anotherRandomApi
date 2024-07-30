@@ -5,7 +5,6 @@ const path = require('path');
 const { spawn } = require('child_process');
 const cluster = require('cluster');
 const os = require('os');
-const http = require('http');
 
 const config = require('../config');
 const routes = require('../routes');
@@ -16,10 +15,11 @@ const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const timeoutMiddleware = require('../middleware/timeoutMiddleware');
 const Logger = require('../helpers/logger');
 const ProxyManager = require('../helpers/proxyManager');
-const authCodeGenerator = require('../helpers/authCodeManager');
+const AuthCodeManager = require('../helpers/authCodeManager');
 
 class AuthCodeGeneratorManager {
-    constructor() {
+    constructor(authCodeGenerator) {
+        this.authCodeGenerator = authCodeGenerator;
         this.isGenerating = false;
         this.interval = null;
         this.normalRate = 15;
@@ -48,7 +48,7 @@ class AuthCodeGeneratorManager {
         this.isGenerating = true;
 
         try {
-            await authCodeGenerator.generateAuthCode();
+            await this.authCodeGenerator.generateAuthCode();
         } catch (error) {
             Logger.error('Error generating auth code:', error);
         } finally {
@@ -61,7 +61,8 @@ class Server {
     constructor() {
         this.app = express();
         this.cfClearanceScraperProcess = null;
-        this.authCodeGeneratorManager = new AuthCodeGeneratorManager();
+        this.authCodeGenerator = new AuthCodeManager();
+        this.authCodeGeneratorManager = new AuthCodeGeneratorManager(this.authCodeGenerator);
         this.configureMiddleware();
         this.configureRoutes();
         this.configureErrorHandling();
@@ -151,7 +152,7 @@ class Server {
                 });
 
                 await ProxyManager.initialize();
-                await authCodeGenerator.initialize();
+                await this.authCodeGenerator.initialize();
                 this.authCodeGeneratorManager.start();
                 
                 if (config.useCFClearanceScraper) {
@@ -232,7 +233,7 @@ class Server {
 
     async initializeProxyManager() {
         try {
-            await proxyManager.initialize();
+            await ProxyManager.initialize();
             Logger.success('Proxy manager initialized successfully');
         } catch (error) {
             Logger.error('Failed to initialize proxy manager:', error);

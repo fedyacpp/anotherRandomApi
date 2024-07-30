@@ -3,25 +3,25 @@ const ProviderInterface = require('./ProviderInterface');
 const Logger = require('../helpers/logger');
 const AuthCodeManager = require('../helpers/authCodeManager');
 
-class Provider38Error extends Error {
+class Provider10Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider38Error';
+    this.name = 'Provider10Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider38 extends ProviderInterface {
+class Provider10 extends ProviderInterface {
     constructor() {
         super();
         this.apiBaseUrl = "https://ai.liaobots.work/v1";
         this.modelInfo = {
-            modelId: "claude-3-opus-20240229",
-            name: "claude-3-opus-20240229",
-            description: "A highly capable model in the Claude 3 series, offering advanced reasoning and broad knowledge, second only to Claude 3.5 Sonnet in performance",
-            context_window: 200000,
-            author: "Anthropic",
+            modelId: "gpt-3.5-turbo-16k",
+            name: "gpt-3.5-turbo-16k",
+            description: "Better version of GPT-3.5-turbo with 16k context window",
+            context_window: 16384,
+            author: "OpenAI",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP limiting for auth tokens"
@@ -33,12 +33,12 @@ class Provider38 extends ProviderInterface {
 
     async initialize() {
         try {
-            Logger.info('Initializing Provider38...');
+            Logger.info('Initializing Provider10...');
             await this.authCodeManager.initialize();
-            Logger.info('Provider38 initialized');
+            Logger.info('Provider10 initialized');
         } catch (error) {
-            Logger.error(`Failed to initialize Provider38: ${error.message}`);
-            throw new Provider38Error('Failed to initialize', 'INIT_ERROR', error);
+            Logger.error(`Failed to initialize Provider10: ${error.message}`);
+            throw new Provider10Error('Failed to initialize', 'INIT_ERROR', error);
         }
     }
 
@@ -52,7 +52,7 @@ class Provider38 extends ProviderInterface {
             try {
                 const authCode = await this.getValidAuthCode();
                 if (!authCode) {
-                    throw new Provider38Error('No valid auth code available', 'AUTH_CODE_ERROR');
+                    throw new Provider10Error('No valid auth code available', 'AUTH_CODE_ERROR');
                 }
                 const config = {
                     headers: {
@@ -77,7 +77,7 @@ class Provider38 extends ProviderInterface {
                 }
                 attempts++;
                 if (attempts >= this.maxAttempts) {
-                    throw new Provider38Error(`Max attempts reached for request to ${endpoint}`, 'MAX_ATTEMPTS_ERROR', error);
+                    throw new Provider10Error(`Max attempts reached for request to ${endpoint}`, 'MAX_ATTEMPTS_ERROR', error);
                 }
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -97,7 +97,7 @@ class Provider38 extends ProviderInterface {
             });
             
             if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-                throw new Provider38Error('Invalid response format from API', 'INVALID_RESPONSE_FORMAT');
+                throw new Provider10Error('Invalid response format from API', 'INVALID_RESPONSE_FORMAT');
             }
     
             return {
@@ -105,7 +105,7 @@ class Provider38 extends ProviderInterface {
                 usage: response.data.usage
             };
         } catch (error) {
-            throw new Provider38Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+            throw new Provider10Error('Failed to generate completion', 'COMPLETION_ERROR', error);
         }
     }
 
@@ -156,9 +156,9 @@ class Provider38 extends ProviderInterface {
                 Logger.warn(`Unprocessed data in buffer: ${buffer}`);
             }
         } catch (error) {
-            throw new Provider38Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+            throw new Provider10Error('Failed to generate completion stream', 'STREAM_ERROR', error);
         }
     }
 }
 
-module.exports = Provider38;
+module.exports = Provider10;

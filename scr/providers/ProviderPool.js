@@ -14,10 +14,10 @@ class ProviderPool {
   static audioModelsInfo = [];
   static providerRatings = new Map();
 
-  static initialize() {
+  static async initialize() {
     Logger.info('Initializing ProviderPool');
     try {
-      this.loadProviders();
+      await this.loadProviders();
       this.updateModelProviderMaps();
       this.updateModelsInfo();
       this.initializeProviderRatings();
@@ -31,17 +31,22 @@ class ProviderPool {
     }
   }
 
-  static loadProviders() {
+  static async loadProviders() {
     const providerDir = __dirname;
     const providerFiles = fs.readdirSync(providerDir).filter(file =>
       (file.startsWith('someprovider') || file.startsWith('imageprovider') || file.startsWith('audioprovider')) && file.endsWith('.js')
     );
     Logger.info(`Found ${providerFiles.length} provider files`);
   
-    providerFiles.forEach(file => {
+    for (const file of providerFiles) {
       try {
         const ProviderClass = require(path.join(providerDir, file));
         const provider = new ProviderClass();
+        
+        if (typeof provider.initialize === 'function' && provider.requiresInitialization) {
+          await provider.initialize();
+          Logger.info(`Initialized provider: ${provider.constructor.name}`);
+        }
         
         if (file.startsWith('someprovider')) {
           this.chatProviders.push(provider);
@@ -57,7 +62,7 @@ class ProviderPool {
           stack: error.stack
         });
       }
-    });
+    }
   
     Logger.info(`Loaded ${this.chatProviders.length} chat providers, ${this.imageProviders.length} image providers, and ${this.audioProviders.length} audio providers`);
   }
@@ -259,5 +264,16 @@ class ProviderPool {
   }
 }
 
-ProviderPool.initialize();
+(async () => {
+  try {
+    await ProviderPool.initialize();
+  } catch (error) {
+    Logger.error('Failed to initialize ProviderPool:', {
+      error: error.message,
+      stack: error.stack
+    });
+    process.exit(1);
+  }
+})();
+
 module.exports = ProviderPool;

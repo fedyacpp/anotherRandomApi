@@ -7,32 +7,30 @@ const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
 
-class Provider39Error extends Error {
+class Provider40Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider39Error';
+    this.name = 'Provider40Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider39 extends ProviderInterface {
+class Provider40 extends ProviderInterface {
     constructor() {
         super();
-        this.authBaseUrl = "https://liaobots.work";
-        this.apiBaseUrl = "https://ai.liaobots.work/v1";
+        this.baseUrl = "https://api.deepinfra.com";
+        this.modelName = "meta-llama/Meta-Llama-3.1-70B-Instruct"
         this.modelInfo = {
-            modelId: "claude-3-opus-20240229",
-            name: "claude-3-opus-20240229",
-            description: "A highly capable model in the Claude 3 series, offering advanced reasoning and broad knowledge, second only to Claude 3.5 Sonnet in performance",
-            context_window: 200000,
-            author: "Anthropic",
+            modelId: "llama-3.1-70b-instruct",
+            name: "llama-3.1-70b-instruct",
+            description: "Meta's advanced open-source instruction-following model, featuring an expanded context window and capable of handling complex tasks across diverse domains",
+            context_window: 128000,
+            author: "Meta",
             unfiltered: true,
             reverseStatus: "Testing",
-            devNotes: "IP limiting for auth tokens"
+            devNotes: "IP rate limit"
         };
-        this.authCode = null;
-        this.cookieJar = null;
         this.maxAttempts = 3;
         this.rateLimiter = {
             tokens: 100,
@@ -40,28 +38,30 @@ class Provider39 extends ProviderInterface {
             lastRefill: Date.now(),
             capacity: 500
         };
-        this.lastAuthRefresh = 0;
-        this.authRefreshInterval = 1 * 60 * 1000;
-        this.balance = 0;
     }
 
-    getHeaders(forAuth = false) {
-        const headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Unique/96.7.5796.97',
-        };
-        if (forAuth) {
-            headers['Origin'] = this.authBaseUrl;
-            headers['Referer'] = `${this.authBaseUrl}/`;
-        } else if (this.authCode) {
-            headers['Authorization'] = `Bearer ${this.authCode}`;
-        }
-        return headers;
-    }
-
-    getAxiosConfig(forAuth = false) {
+    getHeaders() {
         return {
-            headers: this.getHeaders(forAuth),
+            'Accept': 'text/event-stream',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'Accept-Language': 'en-US,en;q=0.9,ru-RU;q=0.8,ru;q=0.7',
+            'Content-Type': 'application/json',
+            'Origin': 'https://deepinfra.com',
+            'Referer': 'https://deepinfra.com/',
+            'Sec-Ch-Ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Unique/96.7.5796.97',
+            'X-Deepinfra-Source': 'model-embed'
+        };
+    }
+
+    getAxiosConfig() {
+        return {
+            headers: this.getHeaders(),
             httpsAgent: new https.Agent({ 
                 rejectUnauthorized: false,
                 keepAlive: true,
@@ -76,63 +76,12 @@ class Provider39 extends ProviderInterface {
         if (!proxyManager.isInitialized()) {
             await proxyManager.initialize();
         }
-        await this.refreshAuthCode();
-    }
-
-    async refreshAuthCode() {
-        try {
-            Logger.info('Attempting to login...');
-            const loginResponse = await axios.post(
-                `${this.authBaseUrl}/recaptcha/api/login`,
-                { token: "abcdefghijklmnopqrst" },
-                this.getAxiosConfig(true)
-            );
-            this.cookieJar = loginResponse.headers['set-cookie'];
-            Logger.info('Login successful, cookies obtained');
-
-            const userInfoResponse = await axios.post(
-                `${this.authBaseUrl}/api/user`,
-                { authcode: "" },
-                {
-                    ...this.getAxiosConfig(true),
-                    headers: {
-                        ...this.getHeaders(true),
-                        Cookie: this.cookieJar
-                    }
-                }
-            );
-            this.authCode = userInfoResponse.data.authCode;
-            this.balance = userInfoResponse.data.balance;
-            Logger.info(`Auth code obtained: ${this.authCode}, Balance: ${this.balance}`);
-
-            if (this.balance < 0.05) {
-                Logger.warn(`Low balance: ${this.balance}. Consider topping up.`);
-            }
-        } catch (error) {
-            Logger.error(`Failed to refresh auth code: ${error.message}`);
-            throw new Provider39Error('Failed to refresh authentication', 'AUTH_REFRESH_ERROR', error);
-        }
-    }
-
-    async ensureValidAuth() {
-        const now = Date.now();
-        if (now - this.lastAuthRefresh > this.authRefreshInterval || this.balance < 0.05) {
-            await this.refreshAuthCode();
-            this.lastAuthRefresh = now;
-        }
     }
 
     async makeRequest(endpoint, data, stream = false) {
-        await this.ensureValidAuth();
         await this.waitForRateLimit();
         
-        const config = {
-            ...this.getAxiosConfig(),
-            headers: {
-                ...this.getHeaders(),
-                Cookie: this.cookieJar
-            }
-        };
+        const config = this.getAxiosConfig();
         if (stream) {
             config.responseType = 'stream';
         }
@@ -141,12 +90,7 @@ class Provider39 extends ProviderInterface {
             const response = await axios.post(`${this.baseUrl}${endpoint}`, data, config);
             return response;
         } catch (error) {
-            if (error.response?.status === 402 || error.message.includes('Invalid session')) {
-                Logger.info(`Received error: ${error.message}. Refreshing auth code...`);
-                await this.refreshAuthCode();
-                return this.makeRequest(endpoint, data, stream);
-            }
-            throw new Provider39Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider40Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -168,110 +112,100 @@ class Provider39 extends ProviderInterface {
         this.rateLimiter.tokens -= 1;
     }
 
-
     async generateCompletion(messages, temperature, max_tokens) {
-        await this.ensureValidAuth();
-    
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
-                const response = await axios.post(
-                    `${this.apiBaseUrl}/chat/completions`,
-                    {
-                        model: this.modelInfo.modelId,
-                        messages,
-                        temperature,
-                        max_tokens,
-                        stream: false
-                    },
-                    this.getAxiosConfig()
-                );
-    
-                return response.data.choices[0].message;
+                const response = await this.makeRequest('/v1/openai/chat/completions', {
+                    model: this.modelName,
+                    messages,
+                    stream: false,
+                    temperature,
+                    max_tokens
+                }, false);
+
+                return { content: response.data.choices[0].message.content };
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
-                if (error.response?.status === 401) {
-                    await this.refreshAuthCode();
-                } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider39Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                if (attempt === this.maxAttempts - 1) {
+                    throw new Provider40Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
     }
 
     async *generateCompletionStream(messages, temperature, max_tokens) {
-        await this.ensureValidAuth();
-    
         for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
             try {
-                const response = await axios.post(
-                    `${this.apiBaseUrl}/chat/completions`,
-                    {
-                        model: this.modelInfo.modelId,
-                        messages,
-                        temperature,
-                        max_tokens,
-                        stream: true
-                    },
-                    {
-                        ...this.getAxiosConfig(),
-                        responseType: 'stream'
-                    }
-                );
+                const response = await this.makeRequest('/v1/openai/chat/completions', {
+                    model: this.modelName,
+                    messages,
+                    stream: true,
+                    temperature,
+                    max_tokens
+                }, true);
     
                 let buffer = '';
                 for await (const chunk of response.data) {
                     buffer += chunk.toString();
-                    let processBuffer = buffer;
-                    buffer = '';
-
-                    while (true) {
-                        const newlineIndex = processBuffer.indexOf('\n');
-                        if (newlineIndex === -1) {
-                            buffer = processBuffer;
-                            break;
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop();
+    
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        if (line.trim() === 'data: [DONE]') {
+                            return;
                         }
-
-                        const line = processBuffer.slice(0, newlineIndex).trim();
-                        processBuffer = processBuffer.slice(newlineIndex + 1);
-
                         if (line.startsWith('data: ')) {
                             try {
-                                const jsonData = line.slice(6);
-                                if (jsonData === '[DONE]') {
-                                    return;
-                                }
-                                const data = JSON.parse(jsonData);
-                                if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                                const jsonData = JSON.parse(line.slice(6));
+                                if (jsonData.choices && jsonData.choices[0].delta.content) {
                                     yield {
                                         choices: [{
-                                            delta: { content: data.choices[0].delta.content },
+                                            delta: { content: jsonData.choices[0].delta.content },
                                             index: 0,
-                                            finish_reason: data.choices[0].finish_reason
+                                            finish_reason: jsonData.choices[0].finish_reason
                                         }]
                                     };
                                 }
-                            } catch (parseError) {
-                                Logger.warn(`Error parsing JSON: ${parseError.message}. Skipping line: ${line}`);
+                            } catch (jsonError) {
+                                Logger.warn(`Failed to parse JSON: ${line.slice(6)}`);
+                                continue;
                             }
                         }
                     }
                 }
     
-                if (buffer.trim()) {
-                    Logger.warn(`Unprocessed data in buffer: ${buffer}`);
+                if (buffer.trim() !== '') {
+                    if (buffer.trim() === 'data: [DONE]') {
+                        return;
+                    }
+                    if (buffer.startsWith('data: ')) {
+                        try {
+                            const jsonData = JSON.parse(buffer.slice(6));
+                            if (jsonData.choices && jsonData.choices[0].delta.content) {
+                                yield {
+                                    choices: [{
+                                        delta: { content: jsonData.choices[0].delta.content },
+                                        index: 0,
+                                        finish_reason: jsonData.choices[0].finish_reason
+                                    }]
+                                };
+                            }
+                        } catch (jsonError) {
+                            Logger.warn(`Failed to parse JSON in remaining buffer: ${buffer.slice(6)}`);
+                        }
+                    }
                 }
     
                 return;
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
-                if (error.response?.status === 401) {
-                    await this.refreshAuthCode();
-                } else if (attempt === this.maxAttempts - 1) {
-                    throw new Provider39Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                if (attempt === this.maxAttempts - 1) {
+                    throw new Provider40Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider39;
+module.exports = Provider40;

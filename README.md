@@ -1,10 +1,12 @@
 # Chat and Image Generation API
 
+!!!In order to liabots provider to work you need to use http proxy in scr\helpers\authCodeManager.js!!!
+
 This project provides an API for chat completion and image generation, supporting multiple providers and models.
 
 ## Providers and Models
 
-- 4 text providers with a total of 25 text models
+- 4 text providers with a total of 31 text models
 - 2 image generation providers with a total of 6 image models
 
 ## Setup
