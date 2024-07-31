@@ -1,4 +1,5 @@
 const chalk = require('chalk');
+const cluster = require('cluster');
 
 class Logger {
   static logLevel = process.env.LOG_LEVEL || 'info';
@@ -31,10 +32,16 @@ class Logger {
         success: chalk.green
       }[level];
 
-      console.log(color(`[${level.toUpperCase()}] ${new Date().toISOString()} - ${message}`));
-      
-      if (error) {
-        console.log(color(this.formatError(error)));
+      const processType = cluster.isMaster ? 'Master' : `Worker ${cluster.worker.id}`;
+      const logMessage = `[${processType}] [${level.toUpperCase()}] ${new Date().toISOString()} - ${message}`;
+
+      if (cluster.isMaster) {
+        console.log(color(logMessage));
+        if (error) {
+          console.log(color(this.formatError(error)));
+        }
+      } else {
+        process.send({ type: 'log', level, message: logMessage, error });
       }
     }
   }
