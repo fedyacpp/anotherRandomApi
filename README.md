@@ -31,7 +31,7 @@ This project provides a robust API for chat completion and image generation, sup
    ```
 
 3. Configure environment variables:
-   - Edit `.env' and set your configuration or leave it as it is
+   - Edit `.env` and set your configuration or leave it as it is
 
 5. Start the server:
    ```
