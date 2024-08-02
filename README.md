@@ -32,8 +32,7 @@ This project provides a robust API for chat completion and image generation, sup
    ```
 
 3. Configure environment variables:
-   - Copy `.env.example` to `.env`
-   - Edit `.env` and set your configuration
+   - Edit `.env` and set your configuration or leave it as it is
 
 5. Start the server:
    ```
@@ -69,7 +68,7 @@ This project provides a robust API for chat completion and image generation, sup
 
 Key configuration options in `.env`:
 
-- `SERVER_PORT`: Server port (default: 3000)
+- `SERVER_PORT`: Server port (default: 8000)
 - `NODE_ENV`: Environment (development/production)
 - `LOG_LEVEL`: Logging level
 - `VALID_API_KEYS`: Blank API keys for authentication
