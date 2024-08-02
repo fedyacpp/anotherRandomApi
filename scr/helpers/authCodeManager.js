@@ -3,6 +3,9 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const Logger = require('./logger');
 const path = require('path');
 const fs = require('fs').promises;
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 class AuthCodeManager {
     constructor() {
@@ -10,11 +13,11 @@ class AuthCodeManager {
         this.requestDelay = 5000;
         this.maxRetries = 3;
         this.proxyConfig = {
-            host: '',
-            port: ,
+            host: process.env.PROXY_HOST,
+            port: process.env.PROXY_PORT,
             auth: {
-                username: '',
-                password: ''
+                username: process.env.PROXY_USERNAME,
+                password: process.env.PROXY_PASSWORD
             }
         };
         this.authCodes = [];

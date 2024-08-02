@@ -11,26 +11,26 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 
 dotenv.config();
 
-class Provider29Error extends Error {
+class Provider40Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider29Error';
+    this.name = 'Provider40Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider29 extends ProviderInterface {
+class Provider40 extends ProviderInterface {
     constructor() {
         super();
         this.baseUrl = "https://api.deepinfra.com";
-        this.modelName = "mistralai/Mistral-7B-Instruct-v0.3"
+        this.modelName = "google/gemma-2-27b-it"
         this.modelInfo = {
-            modelId: "mistral-7b-instruct-v0.3",
-            name: "mistral-7b-instruct-v0.3",
-            description: "Mistral AI's versatile open-source model, balancing efficiency and performance to deliver high-quality responses across a wide range of applications",
-            context_window: 32000,
-            author: "Mistral AI",
+            modelId: "gemma-2-27b-it",
+            name: "gemma-2-27b-it",
+            description: "Google's lightweight and efficient instruction-tuned language model, designed for various natural language processing tasks",
+            context_window: 4096,
+            author: "Google",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP rate limit"
@@ -101,7 +101,7 @@ class Provider29 extends ProviderInterface {
             const response = await axios.post(`${this.baseUrl}${endpoint}`, data, config);
             return response;
         } catch (error) {
-            throw new Provider29Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider40Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -138,7 +138,7 @@ class Provider29 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider29Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                    throw new Provider40Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -212,11 +212,11 @@ class Provider29 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider29Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                    throw new Provider40Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider29;
+module.exports = Provider40;

@@ -121,6 +121,12 @@ class Server {
                 cluster.fork();
             }
 
+            cluster.on('message', (worker, message) => {
+                if (message.type === 'log') {
+                    Logger.printColoredLog(message.level, message.message, message.error);
+                }
+            });
+
             cluster.on('exit', (worker, code, signal) => {
                 Logger.warn(`Worker ${worker.process.pid} died`);
                 cluster.fork();

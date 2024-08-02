@@ -6,6 +6,10 @@ const Logger = require('../helpers/logger');
 const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
+const dotenv = require('dotenv');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
+dotenv.config();
 
 class Provider27Error extends Error {
   constructor(message, code, originalError = null) {
@@ -38,6 +42,14 @@ class Provider27 extends ProviderInterface {
             lastRefill: Date.now(),
             capacity: 500
         };
+        this.proxyConfig = {
+            host: process.env.PROXY_HOST2,
+            port: process.env.PROXY_PORT2,
+            auth: {
+                username: process.env.PROXY_USERNAME2,
+                password: process.env.PROXY_PASSWORD2
+            }
+        };
     }
 
     getHeaders() {
@@ -60,13 +72,12 @@ class Provider27 extends ProviderInterface {
     }
 
     getAxiosConfig() {
+        const httpsAgent = new HttpsProxyAgent(`http://${this.proxyConfig.auth.username}:${this.proxyConfig.auth.password}@${this.proxyConfig.host}:${this.proxyConfig.port}`);
+
         return {
             headers: this.getHeaders(),
-            httpsAgent: new https.Agent({ 
-                rejectUnauthorized: false,
-                keepAlive: true,
-                maxSockets: 100
-            }),
+            httpsAgent: httpsAgent,
+            proxy: false,
             timeout: 60000,
             validateStatus: status => status >= 200 && status < 400
         };

@@ -24,25 +24,34 @@ class Logger {
 
   static log(level, message, error = null) {
     if (this.shouldLog(level)) {
-      const color = {
-        error: chalk.red,
-        warn: chalk.yellow,
-        info: chalk.blue,
-        debug: chalk.gray,
-        success: chalk.green
-      }[level];
-
       const processType = cluster.isMaster ? 'Master' : `Worker ${cluster.worker.id}`;
       const logMessage = `[${processType}] [${level.toUpperCase()}] ${new Date().toISOString()} - ${message}`;
-
+      
       if (cluster.isMaster) {
-        console.log(color(logMessage));
-        if (error) {
-          console.log(color(this.formatError(error)));
-        }
+        this.printColoredLog(level, logMessage, error);
       } else {
-        process.send({ type: 'log', level, message: logMessage, error });
+        process.send({ 
+          type: 'log', 
+          level, 
+          message: logMessage, 
+          error: error ? this.formatError(error) : null 
+        });
       }
+    }
+  }
+
+  static printColoredLog(level, message, error = null) {
+    const color = {
+      error: chalk.red,
+      warn: chalk.yellow,
+      info: chalk.blue,
+      debug: chalk.gray,
+      success: chalk.green
+    }[level];
+
+    console.log(color(message));
+    if (error) {
+      console.log(color(this.formatError(error)));
     }
   }
 

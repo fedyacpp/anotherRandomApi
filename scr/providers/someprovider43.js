@@ -6,27 +6,31 @@ const Logger = require('../helpers/logger');
 const proxyManager = require('../helpers/proxyManager');
 const { promisify } = require('util');
 const sleep = promisify(setTimeout);
+const dotenv = require('dotenv');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
-class Provider26Error extends Error {
+dotenv.config();
+
+class Provider43Error extends Error {
   constructor(message, code, originalError = null) {
     super(message);
-    this.name = 'Provider26Error';
+    this.name = 'Provider43Error';
     this.code = code;
     this.originalError = originalError;
   }
 }
 
-class Provider26 extends ProviderInterface {
+class Provider43 extends ProviderInterface {
     constructor() {
         super();
         this.baseUrl = "https://api.deepinfra.com";
-        this.modelName = "nvidia/Nemotron-4-340B-Instruct"
+        this.modelName = "Gryphe/MythoMax-L2-13b"
         this.modelInfo = {
-            modelId: "nemotron-4-340b-instruct",
-            name: "nemotron-4-340b-instruct",
-            description: "A powerful large language model developed by NVIDIA, designed to handle complex instructions and deliver precise, context-aware responses",
+            modelId: "mythomax-l2-13b",
+            name: "mythomax-l2-13b",
+            description: "An advanced 13 billion parameter language model, fine-tuned for creative and narrative tasks with a focus on fantastical content generation",
             context_window: 4096,
-            author: "NVIDIA",
+            author: "Gryphe",
             unfiltered: true,
             reverseStatus: "Testing",
             devNotes: "IP rate limit"
@@ -37,6 +41,14 @@ class Provider26 extends ProviderInterface {
             refillRate: 50,
             lastRefill: Date.now(),
             capacity: 500
+        };
+        this.proxyConfig = {
+            host: process.env.PROXY_HOST2,
+            port: process.env.PROXY_PORT2,
+            auth: {
+                username: process.env.PROXY_USERNAME2,
+                password: process.env.PROXY_PASSWORD2
+            }
         };
     }
 
@@ -60,13 +72,12 @@ class Provider26 extends ProviderInterface {
     }
 
     getAxiosConfig() {
+        const httpsAgent = new HttpsProxyAgent(`http://${this.proxyConfig.auth.username}:${this.proxyConfig.auth.password}@${this.proxyConfig.host}:${this.proxyConfig.port}`);
+
         return {
             headers: this.getHeaders(),
-            httpsAgent: new https.Agent({ 
-                rejectUnauthorized: false,
-                keepAlive: true,
-                maxSockets: 100
-            }),
+            httpsAgent: httpsAgent,
+            proxy: false,
             timeout: 60000,
             validateStatus: status => status >= 200 && status < 400
         };
@@ -90,7 +101,7 @@ class Provider26 extends ProviderInterface {
             const response = await axios.post(`${this.baseUrl}${endpoint}`, data, config);
             return response;
         } catch (error) {
-            throw new Provider26Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
+            throw new Provider43Error(`Error making request to ${endpoint}`, 'REQUEST_ERROR', error);
         }
     }
 
@@ -127,7 +138,7 @@ class Provider26 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider26Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+                    throw new Provider43Error('Failed to generate completion', 'COMPLETION_ERROR', error);
                 }
             }
         }
@@ -201,11 +212,11 @@ class Provider26 extends ProviderInterface {
             } catch (error) {
                 Logger.error(`Error in completion stream (attempt ${attempt + 1}): ${error.message}`);
                 if (attempt === this.maxAttempts - 1) {
-                    throw new Provider26Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+                    throw new Provider43Error('Failed to generate completion stream', 'STREAM_ERROR', error);
                 }
             }
         }
     }
 }
 
-module.exports = Provider26;
+module.exports = Provider43;

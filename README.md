@@ -1,11 +1,12 @@
 # Chat and Image Generation API
 
+!!Add your 2 rotate http proxies in .env!!
 This project provides a robust API for chat completion and image generation, supporting multiple providers and models. It's designed for scalability, performance, and easy integration of new providers.
 
 ## Features
 
 - Multi-provider support for both text and image generation
-- `4` text providers with `31` text models
+- `4` text providers with `32` text models
 - `2` image generation providers with `6` image models
 - Scalable architecture with worker clustering
 - Rate limiting and API key authentication (auth needs testing, i haven't tried it)
