@@ -1,15 +1,17 @@
 const axios = require('axios');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const ProviderInterface = require('./ProviderInterface');
 const Logger = require('../helpers/logger');
 const AuthCodeManager = require('../helpers/authCodeManager');
+const ProxySelector = require('../helpers/proxySelector');
 
 class Provider35Error extends Error {
-  constructor(message, code, originalError = null) {
-    super(message);
-    this.name = 'Provider35Error';
-    this.code = code;
-    this.originalError = originalError;
-  }
+    constructor(message, code, originalError = null) {
+        super(message);
+        this.name = 'Provider35Error';
+        this.code = code;
+        this.originalError = originalError;
+    }
 }
 
 class Provider35 extends ProviderInterface {
@@ -50,16 +52,25 @@ class Provider35 extends ProviderInterface {
         let attempts = 0;
         while (attempts < this.maxAttempts) {
             try {
-                const authCode = await this.getValidAuthCode();
+                const authCode = await this.authCodeManager.getValidAuthCode();
                 if (!authCode) {
                     throw new Provider35Error('No valid auth code available', 'AUTH_CODE_ERROR');
                 }
-                const config = {
+                const proxy = await ProxySelector.getNextProxy();
+                let config = {
                     headers: {
                         'Authorization': `Bearer ${authCode}`,
                         'Content-Type': 'application/json'
                     }
                 };
+                if (proxy) {
+                    const httpsAgent = new HttpsProxyAgent(`http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`);
+                    config.httpsAgent = httpsAgent;
+                    config.proxy = false;
+                    Logger.info(`Using proxy ${proxy.host}:${proxy.port}`);
+                } else {
+                    Logger.warn('No proxy available, proceeding without proxy');
+                }
                 if (stream) {
                     config.responseType = 'stream';
                 }

@@ -4,6 +4,7 @@ const Logger = require('./logger');
 const path = require('path');
 const fs = require('fs').promises;
 const dotenv = require('dotenv');
+const ProxySelector = require('./proxySelector');
 
 dotenv.config();
 
@@ -12,14 +13,6 @@ class AuthCodeManager {
         this.authBaseUrl = "https://liaobots.work";
         this.requestDelay = 5000;
         this.maxRetries = 3;
-        this.proxyConfig = {
-            host: process.env.PROXY_HOST,
-            port: process.env.PROXY_PORT,
-            auth: {
-                username: process.env.PROXY_USERNAME,
-                password: process.env.PROXY_PASSWORD
-            }
-        };
         this.authCodes = [];
         this.blockedAuthCodes = [];
         this.authCodeFile = path.join(__dirname, '..', '..', 'authCodes.json');
@@ -112,10 +105,11 @@ class AuthCodeManager {
         for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
             try {
                 Logger.info(`Generating new auth code (Attempt ${attempt})...`);
+                const axiosConfig = await this.getAxiosConfig();
                 const loginResponse = await axios.post(
                     `${this.authBaseUrl}/recaptcha/api/login`,
                     { token: "abcdefghijklmnopqrst" },
-                    this.getAxiosConfig()
+                    axiosConfig
                 );
                 const cookieJar = loginResponse.headers['set-cookie'];
     
@@ -125,9 +119,9 @@ class AuthCodeManager {
                     `${this.authBaseUrl}/api/user`,
                     { authcode: "" },
                     {
-                        ...this.getAxiosConfig(),
+                        ...axiosConfig,
                         headers: {
-                            ...this.getAxiosConfig().headers,
+                            ...axiosConfig.headers,
                             Cookie: cookieJar
                         }
                     }
@@ -166,8 +160,22 @@ class AuthCodeManager {
         return null;
     }
 
-    getAxiosConfig() {
-        const httpsAgent = new HttpsProxyAgent(`http://${this.proxyConfig.auth.username}:${this.proxyConfig.auth.password}@${this.proxyConfig.host}:${this.proxyConfig.port}`);
+    async getAxiosConfig() {
+        const proxy = await ProxySelector.getNextProxy();
+        if (!proxy) {
+            Logger.warn('No proxy available, proceeding without proxy');
+            return {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Origin': this.authBaseUrl,
+                    'Referer': `${this.authBaseUrl}/`,
+                },
+                timeout: 60000
+            };
+        }
+        
+        const httpsAgent = new HttpsProxyAgent(`http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`);
         
         return {
             headers: {
@@ -181,7 +189,6 @@ class AuthCodeManager {
             proxy: false
         };
     }
-
     
     async moveAuthCodeToBlocked(code) {
         const index = this.authCodes.findIndex(c => c.code === code);

@@ -1,18 +1,20 @@
 const axios = require('axios');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const ProviderInterface = require('./ProviderInterface');
 const Logger = require('../helpers/logger');
 const AuthCodeManager = require('../helpers/authCodeManager');
+const ProxySelector = require('../helpers/proxySelector');
 
-class Provider10Error extends Error {
-  constructor(message, code, originalError = null) {
-    super(message);
-    this.name = 'Provider10Error';
-    this.code = code;
-    this.originalError = originalError;
-  }
+class Provider16Error extends Error {
+    constructor(message, code, originalError = null) {
+        super(message);
+        this.name = 'Provider16Error';
+        this.code = code;
+        this.originalError = originalError;
+    }
 }
 
-class Provider10 extends ProviderInterface {
+class Provider16 extends ProviderInterface {
     constructor() {
         super();
         this.apiBaseUrl = "https://ai.liaobots.work/v1";
@@ -33,12 +35,12 @@ class Provider10 extends ProviderInterface {
 
     async initialize() {
         try {
-            Logger.info('Initializing Provider10...');
+            Logger.info('Initializing Provider16...');
             await this.authCodeManager.initialize();
-            Logger.info('Provider10 initialized');
+            Logger.info('Provider16 initialized');
         } catch (error) {
-            Logger.error(`Failed to initialize Provider10: ${error.message}`);
-            throw new Provider10Error('Failed to initialize', 'INIT_ERROR', error);
+            Logger.error(`Failed to initialize Provider16: ${error.message}`);
+            throw new Provider16Error('Failed to initialize', 'INIT_ERROR', error);
         }
     }
 
@@ -50,16 +52,25 @@ class Provider10 extends ProviderInterface {
         let attempts = 0;
         while (attempts < this.maxAttempts) {
             try {
-                const authCode = await this.getValidAuthCode();
+                const authCode = await this.authCodeManager.getValidAuthCode();
                 if (!authCode) {
-                    throw new Provider10Error('No valid auth code available', 'AUTH_CODE_ERROR');
+                    throw new Provider16Error('No valid auth code available', 'AUTH_CODE_ERROR');
                 }
-                const config = {
+                const proxy = await ProxySelector.getNextProxy();
+                let config = {
                     headers: {
                         'Authorization': `Bearer ${authCode}`,
                         'Content-Type': 'application/json'
                     }
                 };
+                if (proxy) {
+                    const httpsAgent = new HttpsProxyAgent(`http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`);
+                    config.httpsAgent = httpsAgent;
+                    config.proxy = false;
+                    Logger.info(`Using proxy ${proxy.host}:${proxy.port}`);
+                } else {
+                    Logger.warn('No proxy available, proceeding without proxy');
+                }
                 if (stream) {
                     config.responseType = 'stream';
                 }
@@ -77,7 +88,7 @@ class Provider10 extends ProviderInterface {
                 }
                 attempts++;
                 if (attempts >= this.maxAttempts) {
-                    throw new Provider10Error(`Max attempts reached for request to ${endpoint}`, 'MAX_ATTEMPTS_ERROR', error);
+                    throw new Provider16Error(`Max attempts reached for request to ${endpoint}`, 'MAX_ATTEMPTS_ERROR', error);
                 }
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -97,7 +108,7 @@ class Provider10 extends ProviderInterface {
             });
             
             if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-                throw new Provider10Error('Invalid response format from API', 'INVALID_RESPONSE_FORMAT');
+                throw new Provider16Error('Invalid response format from API', 'INVALID_RESPONSE_FORMAT');
             }
     
             return {
@@ -105,7 +116,7 @@ class Provider10 extends ProviderInterface {
                 usage: response.data.usage
             };
         } catch (error) {
-            throw new Provider10Error('Failed to generate completion', 'COMPLETION_ERROR', error);
+            throw new Provider16Error('Failed to generate completion', 'COMPLETION_ERROR', error);
         }
     }
 
@@ -156,9 +167,9 @@ class Provider10 extends ProviderInterface {
                 Logger.warn(`Unprocessed data in buffer: ${buffer}`);
             }
         } catch (error) {
-            throw new Provider10Error('Failed to generate completion stream', 'STREAM_ERROR', error);
+            throw new Provider16Error('Failed to generate completion stream', 'STREAM_ERROR', error);
         }
     }
 }
 
-module.exports = Provider10;
+module.exports = Provider16;
