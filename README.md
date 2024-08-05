@@ -1,5 +1,6 @@
 # Chat and Image Generation API
 
+**This project will be dropped as im going to host it and make it proprietary, this repository wont be deleted**
 !!Create your proxyList.json in root folder (next to package.json and etc.) in this format!!
 ```json
 {
